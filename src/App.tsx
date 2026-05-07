@@ -2490,6 +2490,8 @@ export default function App() {
           const ido = node?.data?.ido;
           return ido?.type === 'IDO' && (ido?.sqlList?.[0]?.sqlDvCd || '') === 'SELECT' ? 'outputList (JexDataList)' : undefined;
         })()}
+        hideOutput={nodes.find(n => n.id === selectedNodeId)?.type === 'Start'}
+        hideInput={nodes.find(n => n.id === selectedNodeId)?.type === 'End'}
       />
 
       <MappingSettingModal

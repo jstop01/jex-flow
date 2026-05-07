@@ -35,6 +35,8 @@ interface IOSettingModalProps {
   readOnly?: boolean;
   outputReadOnly?: boolean;
   outputTitle?: string;
+  hideInput?: boolean;
+  hideOutput?: boolean;
 }
 
 // Reusable Table Section defined OUTSIDE the main component
@@ -174,7 +176,7 @@ const IOSection = ({
     );
 };
 
-export const IOSettingModal = ({ isOpen, onClose, nodeId, initialInputs = [], initialOutputs = [], onSave, readOnly = false, outputReadOnly = false, outputTitle }: IOSettingModalProps) => {
+export const IOSettingModal = ({ isOpen, onClose, nodeId, initialInputs = [], initialOutputs = [], onSave, readOnly = false, outputReadOnly = false, outputTitle, hideInput = false, hideOutput = false }: IOSettingModalProps) => {
   // Mock State for Inputs and Outputs
   const [inputs, setInputs] = useState<IOField[]>([]);
   const [outputs, setOutputs] = useState<IOField[]>([]);
@@ -281,35 +283,39 @@ export const IOSettingModal = ({ isOpen, onClose, nodeId, initialInputs = [], in
         
         {/* Content - Vertical Split */}
         <div className="flex-1 flex flex-col overflow-hidden bg-slate-100">
-            <IOSection
-                title="inputMessage"
-                data={inputs}
-                isExpanded={isInputExpanded}
-                onToggleExpand={() => setIsInputExpanded(!isInputExpanded)}
-                onAdd={() => addRow('input')}
-                onDelete={() => deleteRow('input')}
-                onDeleteAll={() => deleteAll('input')}
-                onUpdate={(data) => setInputs(data)}
-                onCheck={(id) => toggleCheck('input', id)}
-                onCheckAll={(checked) => toggleAllCheck('input', checked)}
-                readOnly={readOnly}
-            />
-            <IOSection
-                title={outputTitle || "outputMessage"}
-                data={outputs}
-                isExpanded={isOutputExpanded}
-                onToggleExpand={() => setIsOutputExpanded(!isOutputExpanded)}
-                onAdd={() => addRow('output')}
-                onDelete={() => deleteRow('output')}
-                onDeleteAll={() => deleteAll('output')}
-                onCopy={() => {
-                    setOutputs([...outputs, ...inputs.map(i => ({...i, id: Math.random().toString(36).substr(2, 9)}))]);
-                }}
-                onUpdate={(data) => setOutputs(data)}
-                onCheck={(id) => toggleCheck('output', id)}
-                onCheckAll={(checked) => toggleAllCheck('output', checked)}
-                readOnly={readOnly || outputReadOnly}
-            />
+            {!hideInput && (
+              <IOSection
+                  title="inputMessage"
+                  data={inputs}
+                  isExpanded={isInputExpanded}
+                  onToggleExpand={() => setIsInputExpanded(!isInputExpanded)}
+                  onAdd={() => addRow('input')}
+                  onDelete={() => deleteRow('input')}
+                  onDeleteAll={() => deleteAll('input')}
+                  onUpdate={(data) => setInputs(data)}
+                  onCheck={(id) => toggleCheck('input', id)}
+                  onCheckAll={(checked) => toggleAllCheck('input', checked)}
+                  readOnly={readOnly}
+              />
+            )}
+            {!hideOutput && (
+              <IOSection
+                  title={outputTitle || "outputMessage"}
+                  data={outputs}
+                  isExpanded={isOutputExpanded}
+                  onToggleExpand={() => setIsOutputExpanded(!isOutputExpanded)}
+                  onAdd={() => addRow('output')}
+                  onDelete={() => deleteRow('output')}
+                  onDeleteAll={() => deleteAll('output')}
+                  onCopy={() => {
+                      setOutputs([...outputs, ...inputs.map(i => ({...i, id: Math.random().toString(36).substr(2, 9)}))]);
+                  }}
+                  onUpdate={(data) => setOutputs(data)}
+                  onCheck={(id) => toggleCheck('output', id)}
+                  onCheckAll={(checked) => toggleAllCheck('output', checked)}
+                  readOnly={readOnly || outputReadOnly}
+              />
+            )}
         </div>
       </div>
     </div>
