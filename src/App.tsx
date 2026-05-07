@@ -2575,7 +2575,7 @@ export default function App() {
               }
 
               // Variable 노드: variableName을 outputs 필드로 제공 (매핑 소스로 사용 가능)
-              if (nodeType === 'Variable' && n.data?.variableName && n.data?.isSaved) {
+              if (nodeType === 'Variable' && n.data?.variableName) {
                 finalOutputs = [{ name: n.data.variableName, fieldType: 'String' }];
               }
 

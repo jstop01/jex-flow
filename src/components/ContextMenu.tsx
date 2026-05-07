@@ -15,7 +15,7 @@ interface ContextMenuProps {
 
 export const ContextMenu = ({ top, left, nodeId, nodeType, onClose, onIOSetting, onChangeId, onInputMapping, onOutputMapping }: ContextMenuProps) => {
   const menuRef = useRef<HTMLDivElement>(null);
-  const isStartOrEnd = nodeType === 'Start' || nodeType === 'End';
+  const isStart = nodeType === 'Start';
   const isContainer = nodeType === 'Method' || nodeType === 'While' || nodeType === 'For' || nodeType === 'ForEach';
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export const ContextMenu = ({ top, left, nodeId, nodeType, onClose, onIOSetting,
       style={{ top, left }}
       className="absolute z-50 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 animate-in fade-in zoom-in duration-100 origin-top-left"
     >
-      {!isStartOrEnd && !isContainer && (
+      {!isStart && !isContainer && (
         <>
           <button
             onClick={() => {
