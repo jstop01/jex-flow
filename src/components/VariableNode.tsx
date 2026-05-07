@@ -37,7 +37,7 @@ export const VariableNode = memo(({ id, data, selected }: NodeProps) => {
 
   return (
     <div
-      className={`rounded-lg bg-white border-2 shadow-md min-w-[140px] transition-all ${
+      className={`rounded-xl bg-white border-2 shadow-lg min-w-[140px] transition-all overflow-hidden ${
         selected ? 'border-emerald-500 shadow-lg' : 'border-slate-300'
       }`}
     >
