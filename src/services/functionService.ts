@@ -8,7 +8,9 @@ export interface MapFunction {
 export interface FunctionField {
   id: string;
   text: string;
-  type: 'FIELD' | 'TEXT' | 'PASSWORD' | 'RADIO' | 'CHECK' | 'LIST' | 'SPLIT' | 'DESCRIPTION';
+  type:
+    | 'FIELD' | 'TEXT' | 'PASSWORD' | 'RADIO' | 'CHECK' | 'LIST' | 'SPLIT' | 'DESCRIPTION'
+    | 'Object' | 'Double' | 'Float' | 'Integer' | 'VALUE';
   defaultValue?: string;
   listValue?: string;
 }

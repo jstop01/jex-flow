@@ -135,6 +135,58 @@ export const MappingEditorModal = ({
   // 선택된 타겟 필드 (매핑 목록 표시용)
   const [selectedTargetField, setSelectedTargetField] = useState<string | null>(null);
 
+  // CallDO/Process 노드의 IO를 API로 동적 조회한 결과 캐시
+  const [fetchedSourceIO, setFetchedSourceIO] = useState<{ inputs: FieldInfo[]; outputs: FieldInfo[] }>({ inputs: [], outputs: [] });
+  const [fetchedTargetIO, setFetchedTargetIO] = useState<{ inputs: FieldInfo[]; outputs: FieldInfo[] }>({ inputs: [], outputs: [] });
+
+  // 소스 노드 선택 시 IO 동적 조회
+  useEffect(() => {
+    if (!sourceNodeId || !isOpen) { setFetchedSourceIO({ inputs: [], outputs: [] }); return; }
+    const node = availableNodes.find(n => n.id === sourceNodeId);
+    if (!node) return;
+    // 이미 outputs가 있으면 조회 불필요
+    if (node.outputs && node.outputs.length > 0) { setFetchedSourceIO({ inputs: [], outputs: [] }); return; }
+    // IDO가 있는 노드만 조회
+    const componentId = node.ido?.componentId;
+    if (!componentId) return;
+    fetchComponentIO(componentId, node.ido?.type || 'IDO')
+      .then(result => {
+        const toFieldInfo = (f: any): FieldInfo => ({
+          name: f.name || f.englishName || f.koreanName || '',
+          fieldType: f.fieldType || f.type || 'FIELD',
+          children: f.children?.map(toFieldInfo),
+        });
+        setFetchedSourceIO({
+          inputs: result.inputs.map(toFieldInfo).filter(f => f.name),
+          outputs: result.outputs.map(toFieldInfo).filter(f => f.name),
+        });
+      })
+      .catch(() => setFetchedSourceIO({ inputs: [], outputs: [] }));
+  }, [sourceNodeId, isOpen, availableNodes]);
+
+  // 타겟 노드 선택 시 IO 동적 조회
+  useEffect(() => {
+    if (!targetNodeId || !isOpen) { setFetchedTargetIO({ inputs: [], outputs: [] }); return; }
+    const node = availableNodes.find(n => n.id === targetNodeId);
+    if (!node) return;
+    if (node.inputs && node.inputs.length > 0) { setFetchedTargetIO({ inputs: [], outputs: [] }); return; }
+    const componentId = node.ido?.componentId;
+    if (!componentId) return;
+    fetchComponentIO(componentId, node.ido?.type || 'IDO')
+      .then(result => {
+        const toFieldInfo = (f: any): FieldInfo => ({
+          name: f.name || f.englishName || f.koreanName || '',
+          fieldType: f.fieldType || f.type || 'FIELD',
+          children: f.children?.map(toFieldInfo),
+        });
+        setFetchedTargetIO({
+          inputs: result.inputs.map(toFieldInfo).filter(f => f.name),
+          outputs: result.outputs.map(toFieldInfo).filter(f => f.name),
+        });
+      })
+      .catch(() => setFetchedTargetIO({ inputs: [], outputs: [] }));
+  }, [targetNodeId, isOpen, availableNodes]);
+
   // 자동매핑 모달 상태
   const [autoMapModalOpen, setAutoMapModalOpen] = useState(false);
   const [autoMapMode, setAutoMapMode] = useState<'depth' | 'order' | 'smart'>('depth');
@@ -323,8 +375,22 @@ export const MappingEditorModal = ({
       setLoadedTargetChildren({});
       setLoadingSourceRecords(new Set());
       setLoadingTargetRecords(new Set());
-      setExpandedSourceRecords(new Set());
-      setExpandedTargetRecords(new Set());
+      // 매핑에 사용된 필드의 부모 RECORD를 자동 펼침
+      // 소스: "REC.ACCT_NO" 형태면 "REC"를 펼침
+      const autoExpandSource = new Set<string>();
+      const autoExpandTarget = new Set<string>();
+      migratedMappings.forEach((m: MappingConnection) => {
+        m.sources?.forEach(s => {
+          if (s.fieldName && s.fieldName.includes('.')) {
+            autoExpandSource.add(s.fieldName.split('.')[0]);
+          }
+        });
+        if (m.targetFieldName && m.targetFieldName.includes('.')) {
+          autoExpandTarget.add(m.targetFieldName.split('.')[0]);
+        }
+      });
+      setExpandedSourceRecords(autoExpandSource);
+      setExpandedTargetRecords(autoExpandTarget);
 
       // 추가 렌더링 트리거 (ref 설정 후)
       setTimeout(() => {
@@ -362,8 +428,21 @@ export const MappingEditorModal = ({
     }
   }, [isOpen, mappings]);
 
-  const sourceNode = availableNodes.find(n => n.id === sourceNodeId);
-  const targetNode = availableNodes.find(n => n.id === targetNodeId);
+  const rawSourceNode = availableNodes.find(n => n.id === sourceNodeId);
+  const rawTargetNode = availableNodes.find(n => n.id === targetNodeId);
+
+  // API로 조회한 IO가 있으면 override
+  const sourceNode = rawSourceNode ? {
+    ...rawSourceNode,
+    inputs: rawSourceNode.inputs.length > 0 ? rawSourceNode.inputs : fetchedSourceIO.inputs,
+    outputs: rawSourceNode.outputs.length > 0 ? rawSourceNode.outputs : fetchedSourceIO.outputs,
+  } : rawSourceNode;
+
+  const targetNode = rawTargetNode ? {
+    ...rawTargetNode,
+    inputs: rawTargetNode.inputs.length > 0 ? rawTargetNode.inputs : fetchedTargetIO.inputs,
+    outputs: rawTargetNode.outputs.length > 0 ? rawTargetNode.outputs : fetchedTargetIO.outputs,
+  } : rawTargetNode;
 
   // fieldType이 Record/CMO 계열인지 판별 (대소문자 무관: 'RECORD' | 'Record' | 'COMMON' | 'Common')
   const isRecordFieldType = (ft?: string) => {
@@ -2512,6 +2591,24 @@ export const MappingEditorModal = ({
                 <div style={{ textAlign: 'center', color: '#94a3b8', padding: '20px' }}>등록된 필드가 없습니다.</div>
               ) : (
                 funcFields.map((field, idx) => {
+                  // 신타입 VALUE: 입력 UI 미노출 (함수 내부에서 처리)
+                  if (field.type === 'VALUE') {
+                    return null;
+                  }
+                  // 신타입 Object/Double/Float/Integer: 단순 input 텍스트 (TEXT 분기와 동일 동작)
+                  if (field.type === 'Object' || field.type === 'Double' || field.type === 'Float' || field.type === 'Integer') {
+                    return (
+                      <div key={field.id || idx} style={{ marginBottom: '16px' }}>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', color: '#334155', marginBottom: '6px' }}>{field.text}</label>
+                        <input
+                          type="text"
+                          value={funcFieldValues[field.id] || ''}
+                          onChange={(e) => setFuncFieldValues(prev => ({ ...prev, [field.id]: e.target.value }))}
+                          style={{ width: '100%', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', outline: 'none' }}
+                        />
+                      </div>
+                    );
+                  }
                   if (field.type === 'SPLIT') {
                     return (
                       <div key={idx} style={{ margin: '16px 0', borderTop: '1px solid #e2e8f0' }}>

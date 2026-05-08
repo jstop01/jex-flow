@@ -5,7 +5,9 @@ import { X, Settings } from 'lucide-react';
 export interface InputField {
   id: string;
   text?: string;
-  type: 'FIELD' | 'TEXT' | 'PASSWORD' | 'RADIO' | 'CHECK' | 'LIST' | 'SPLIT' | 'DESCRIPTION';
+  type:
+    | 'FIELD' | 'TEXT' | 'PASSWORD' | 'RADIO' | 'CHECK' | 'LIST' | 'SPLIT' | 'DESCRIPTION'
+    | 'Object' | 'Double' | 'Float' | 'Integer' | 'VALUE';
   dataType?: string;
   defaultValue?: string;
   listValue?: { value: string; text: string }[];
@@ -136,6 +138,10 @@ export const ServiceTypeInputModal = ({
         );
 
       case 'TEXT':
+      case 'Object':
+      case 'Double':
+      case 'Float':
+      case 'Integer':
         return (
           <div key={input.id} className={`mb-4 ${isReadOnly ? 'opacity-50' : ''}`}>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
@@ -156,6 +162,10 @@ export const ServiceTypeInputModal = ({
             />
           </div>
         );
+
+      case 'VALUE':
+        // 신타입 VALUE: 입력 UI 미노출 (함수 내부에서 처리)
+        return null;
 
       case 'PASSWORD':
         return (
