@@ -13,7 +13,7 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { X, Save, FolderOpen, Repeat, Repeat2, RotateCw, Workflow, Database, Split, GitMerge, AlertCircle, Layers, Phone, Code, ChevronDown, Settings, Trash2, Edit3, Undo2, Redo2 } from 'lucide-react';
+import { X, Save, FolderOpen, Repeat, Repeat2, RotateCw, Workflow, Database, Split, GitMerge, AlertCircle, Layers, Phone, Code, ChevronDown, Settings, Trash2, Edit3, Undo2, Redo2, ArrowDownToLine } from 'lucide-react';
 import { IOSettingModal } from './IOSettingModal';
 import { IDOSearchModal, ComponentItem } from './IDOSearchModal';
 import { fetchComponentIO } from '../services/componentService';
@@ -324,7 +324,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
   const [conditionModal, setConditionModal] = useState<{ isOpen: boolean; nodeId: string | null; expression: string }>({ isOpen: false, nodeId: null, expression: '' });
   const [scriptModal, setScriptModal] = useState<{ isOpen: boolean; nodeId: string | null; scriptType: string; variableName: string; scriptContent: string }>({ isOpen: false, nodeId: null, scriptType: '', variableName: '', scriptContent: '' });
   const [codeModal, setCodeModal] = useState<{ isOpen: boolean; nodeId: string | null }>({ isOpen: false, nodeId: null });
-  const [mappingEditorModal, setMappingEditorModal] = useState<{ isOpen: boolean; nodeId: string | null; mappings: MappingConnection[] }>({ isOpen: false, nodeId: null, mappings: [] });
+  const [mappingEditorModal, setMappingEditorModal] = useState<{ isOpen: boolean; nodeId: string | null; mappings: MappingConnection[]; fixedTargetNodeId?: string | null }>({ isOpen: false, nodeId: null, mappings: [] });
 
   // Undo/Redo 상태
   const [history, setHistory] = useState<{ nodes: Node[]; edges: Edge[] }[]>([]);
@@ -718,8 +718,8 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
   // 노드 우클릭 컨텍스트 메뉴 핸들러
   const onNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
     event.preventDefault();
-    // Start/End 노드는 제외
-    if (node.data?.isStart || node.data?.isEnd) return;
+    // Start 노드는 컨텍스트 메뉴 제외 (End 노드는 IO 설정 허용)
+    if (node.data?.isStart) return;
 
     setNodeContextMenu({
       top: event.clientY,
@@ -1056,10 +1056,14 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
         const nodeData = n.data as any;
         return {
           id: n.id,
-          label: nodeData?.label || n.id,
+          label: n.id,
           type: isStartNode ? 'Start' : isEndNode ? 'End' : (n.type || 'unknown'),
           inputs: nodeData?.inputs || [],
           outputs: nodeData?.outputs || [],
+          ido: nodeData?.ido ? {
+            componentId: nodeData.ido.componentId || '',
+            type: nodeData.ido.type || 'IMO',
+          } : undefined,
         };
       });
   }, [nodes]);
@@ -1330,49 +1334,79 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
           <div className="px-3 py-1.5 text-xs font-medium text-slate-400">
             노드 설정
           </div>
-          {/* Edit 버튼 - 특정 노드 타입용 */}
           {(() => {
             const node = nodes.find(n => n.id === nodeContextMenu.nodeId);
+            const isEndNode = node?.data?.isEnd || node?.data?.isInternalEnd;
+            const isStartNode = node?.data?.isStart || node?.data?.isInternalStart;
+            const isContainer = ['Method', 'While', 'For', 'ForEach'].includes(node?.type || '');
             const editableTypes = ['IfElse', 'Script', 'Error', 'Mapping', 'For', 'ForEach', 'While'];
-            if (node && editableTypes.includes(node.type || '')) {
-              return (
+
+            return (
+              <>
+                {/* Edit 버튼 - 특정 노드 타입용 (End 노드 제외) */}
+                {!isEndNode && node && editableTypes.includes(node.type || '') && (
+                  <button
+                    onClick={() => {
+                      openNodeEditorRef.current(nodeContextMenu.nodeId);
+                      setNodeContextMenu(null);
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
+                  >
+                    <Edit3 size={16} className="text-[#5277f7]" />
+                    <span>노드 편집</span>
+                  </button>
+                )}
+
+                {/* 입력 매핑 - Start/Container 제외 */}
+                {node && !isStartNode && !isContainer && (
+                  <button
+                    onClick={() => {
+                      setMappingEditorModal({
+                        isOpen: true,
+                        nodeId: nodeContextMenu.nodeId,
+                        mappings: node.data?.mappings || [],
+                        fixedTargetNodeId: nodeContextMenu.nodeId,
+                      });
+                      setNodeContextMenu(null);
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
+                  >
+                    <ArrowDownToLine size={16} className="text-emerald-500" />
+                    <span>입력 매핑</span>
+                  </button>
+                )}
+
+                {/* IO 설정 - 모든 노드 (End 노드 포함) */}
                 <button
-                  onClick={() => {
-                    openNodeEditorRef.current(nodeContextMenu.nodeId);
-                    setNodeContextMenu(null);
-                  }}
+                  onClick={() => handleIOSetting(nodeContextMenu.nodeId)}
                   className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
                 >
-                  <Edit3 size={16} className="text-[#5277f7]" />
-                  <span>노드 편집</span>
+                  <Settings size={16} className="text-blue-500" />
+                  <span>Input/Output 설정</span>
                 </button>
-              );
-            }
-            return null;
+
+                {/* ID 변경 / 삭제 - End 노드 제외 */}
+                {!isEndNode && (
+                  <>
+                    <button
+                      onClick={() => handleChangeId(nodeContextMenu.nodeId)}
+                      className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
+                    >
+                      <Edit3 size={16} className="text-purple-500" />
+                      <span>ID 변경</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteNode(nodeContextMenu.nodeId)}
+                      className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors"
+                    >
+                      <Trash2 size={16} />
+                      <span>노드 삭제</span>
+                    </button>
+                  </>
+                )}
+              </>
+            );
           })()}
-          {/* Input/Output 설정 버튼 임시 주석 처리
-          <button
-            onClick={() => handleIOSetting(nodeContextMenu.nodeId)}
-            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
-          >
-            <Settings size={16} className="text-blue-500" />
-            <span>Input/Output 설정</span>
-          </button>
-          */}
-          <button
-            onClick={() => handleChangeId(nodeContextMenu.nodeId)}
-            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
-          >
-            <Edit3 size={16} className="text-purple-500" />
-            <span>ID 변경</span>
-          </button>
-          <button
-            onClick={() => handleDeleteNode(nodeContextMenu.nodeId)}
-            className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors"
-          >
-            <Trash2 size={16} />
-            <span>노드 삭제</span>
-          </button>
         </div>
       )}
 
@@ -1483,6 +1517,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
         availableNodes={currentContainerNodes}
         edges={edges}
         onSave={handleMappingEditorSave}
+        fixedTargetNodeId={mappingEditorModal.fixedTargetNodeId}
       />
 
       {/* 중첩 ContainerFlowModal (for, forEach, while 노드 내부 편집용) */}

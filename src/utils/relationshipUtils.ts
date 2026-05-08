@@ -7,15 +7,15 @@ import { Node, Edge } from 'reactflow';
  */
 const SAVE_DATA_FIELDS: Record<string, string[]> = {
   Start:     ['label', 'isStart', 'inputMessage', 'outputMessage'],
-  End:       ['label', 'isEnd'],
-  Variable:  ['label', 'variableName', 'expression'],
-  CallDO:    ['label', 'ido', 'returnType', 'code', 'codeName', 'description', 'returnTypeOptions'],
-  Process:   ['label', 'serviceType', 'serviceTypeInput', 'ido', 'returnType', 'code', 'codeName', 'description'],
+  End:       ['label', 'isEnd', 'mappings'],
+  Variable:  ['label', 'variableName', 'expression', 'mappings'],
+  CallDO:    ['label', 'ido', 'returnType', 'code', 'codeName', 'description', 'returnTypeOptions', 'mappings'],
+  Process:   ['label', 'serviceType', 'serviceTypeInput', 'ido', 'returnType', 'code', 'codeName', 'description', 'mappings'],
   Mapping:   ['label', 'mappings', 'inputMappings'],
-  IfElse:    ['label', 'expression'],
-  Switch:    ['label', 'expression', 'cases'],
-  Error:     ['label', 'code', 'codeName', 'description'],
-  Script:    ['label', 'scriptType', 'scriptContent', 'variableName'],
+  IfElse:    ['label', 'expression', 'mappings'],
+  Switch:    ['label', 'expression', 'cases', 'mappings'],
+  Error:     ['label', 'code', 'codeName', 'description', 'mappings'],
+  Script:    ['label', 'scriptType', 'scriptContent', 'variableName', 'mappings'],
   Method:    ['label', 'isExpanded', 'hasChildren', 'internalNodesPreview'],
   While:     ['label', 'expression', 'isExpanded', 'hasChildren', 'internalNodesPreview'],
   For:       ['label', 'expression', 'isExpanded', 'hasChildren', 'internalNodesPreview', 'iteratorVar', 'startVal', 'endVal', 'stepVal'],
@@ -43,6 +43,8 @@ export const cleanNodeForExport = (node: Node): any => {
     } else if (data.returnType) {
       cleanData.returnType = data.returnType;
     }
+    // 매핑 데이터 보존 (입력 매핑 설정)
+    if (data.mappings) cleanData.mappings = data.mappings;
   } else {
     for (const field of allowedFields) {
       if (data[field] !== undefined) {
