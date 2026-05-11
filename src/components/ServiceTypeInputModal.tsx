@@ -7,7 +7,7 @@ export interface InputField {
   text?: string;
   type:
     | 'FIELD' | 'TEXT' | 'PASSWORD' | 'RADIO' | 'CHECK' | 'LIST' | 'SPLIT' | 'DESCRIPTION'
-    | 'Object' | 'Double' | 'Float' | 'Integer' | 'VALUE';
+    | 'String' | 'Double' | 'Boolean' | 'Float' | 'Integer' | 'Object' | 'VALUE';
   dataType?: string;
   defaultValue?: string;
   listValue?: { value: string; text: string }[];
@@ -138,8 +138,10 @@ export const ServiceTypeInputModal = ({
         );
 
       case 'TEXT':
+      case 'String':
       case 'Object':
       case 'Double':
+      case 'Boolean':
       case 'Float':
       case 'Integer':
         return (

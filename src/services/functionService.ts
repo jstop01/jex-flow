@@ -10,7 +10,7 @@ export interface FunctionField {
   text: string;
   type:
     | 'FIELD' | 'TEXT' | 'PASSWORD' | 'RADIO' | 'CHECK' | 'LIST' | 'SPLIT' | 'DESCRIPTION'
-    | 'Object' | 'Double' | 'Float' | 'Integer' | 'VALUE';
+    | 'String' | 'Double' | 'Boolean' | 'Float' | 'Integer' | 'Object' | 'VALUE';
   defaultValue?: string;
   listValue?: string;
 }

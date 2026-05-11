@@ -2595,8 +2595,12 @@ export const MappingEditorModal = ({
                   if (field.type === 'VALUE') {
                     return null;
                   }
-                  // 신타입 Object/Double/Float/Integer: 단순 input 텍스트 (TEXT 분기와 동일 동작)
-                  if (field.type === 'Object' || field.type === 'Double' || field.type === 'Float' || field.type === 'Integer') {
+                  // 신타입 String/Object/Double/Boolean/Float/Integer: 단순 input 텍스트 (TEXT 분기와 동일 동작)
+                  if (
+                    field.type === 'String' || field.type === 'Object' ||
+                    field.type === 'Double' || field.type === 'Boolean' ||
+                    field.type === 'Float' || field.type === 'Integer'
+                  ) {
                     return (
                       <div key={field.id || idx} style={{ marginBottom: '16px' }}>
                         <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', color: '#334155', marginBottom: '6px' }}>{field.text}</label>
