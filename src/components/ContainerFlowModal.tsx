@@ -316,7 +316,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [contextMenu, setContextMenu] = useState<{ top: number; left: number; flowPosition: { x: number; y: number } } | null>(null);
   const [nodeContextMenu, setNodeContextMenu] = useState<{ top: number; left: number; nodeId: string } | null>(null);
-  const [ioModal, setIoModal] = useState<{ isOpen: boolean; nodeId: string | null }>({ isOpen: false, nodeId: null });
+  const [ioModal, setIoModal] = useState<{ isOpen: boolean; nodeId: string | null; readOnly?: boolean }>({ isOpen: false, nodeId: null, readOnly: false });
   const [idChangeModal, setIdChangeModal] = useState<{ nodeId: string; currentId: string } | null>(null);
   const [newIdValue, setNewIdValue] = useState('');
   const [idoModal, setIdoModal] = useState<{ isOpen: boolean; nodeId: string | null }>({ isOpen: false, nodeId: null });
@@ -739,7 +739,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
     if (ioModal.nodeId) {
       updateNodeData(ioModal.nodeId, 'inputs', inputs);
       updateNodeData(ioModal.nodeId, 'outputs', outputs);
-      setIoModal({ isOpen: false, nodeId: null });
+      setIoModal({ isOpen: false, nodeId: null, readOnly: false });
     }
   }, [ioModal.nodeId, updateNodeData]);
 
@@ -1000,6 +1000,9 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
       });
       return;
     }
+
+    // 자체 더블클릭 액션이 없는 노드 → readonly IO 설정 모달 (수정 불가)
+    setIoModal({ isOpen: true, nodeId: node.id, readOnly: true });
   }, []);
 
 
@@ -1376,14 +1379,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
                   </button>
                 )}
 
-                {/* IO 설정 - 모든 노드 (End 노드 포함) */}
-                <button
-                  onClick={() => handleIOSetting(nodeContextMenu.nodeId)}
-                  className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
-                >
-                  <Settings size={16} className="text-blue-500" />
-                  <span>Input/Output 설정</span>
-                </button>
+                {/* Input/Output 설정 버튼 제거 — 더블클릭으로 readonly 모달이 열리도록 변경됨 */}
 
                 {/* ID 변경 / 삭제 - End 노드 제외 */}
                 {!isEndNode && (
@@ -1413,11 +1409,12 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
       {/* IO Setting Modal */}
       <IOSettingModal
         isOpen={ioModal.isOpen}
-        onClose={() => setIoModal({ isOpen: false, nodeId: null })}
+        onClose={() => setIoModal({ isOpen: false, nodeId: null, readOnly: false })}
         nodeId={ioModal.nodeId}
         initialInputs={(nodes.find(n => n.id === ioModal.nodeId)?.data as any)?.inputs || []}
         initialOutputs={(nodes.find(n => n.id === ioModal.nodeId)?.data as any)?.outputs || []}
         onSave={handleIOSave}
+        readOnly={ioModal.readOnly}
       />
 
       {/* ID Change Modal */}
@@ -1587,8 +1584,6 @@ export const ContainerFlowModal = ({
 
   // wrapper 함수 - ref와 state 동시 업데이트
   const updateCurrentNodes = useCallback((nodes: Node[]) => {
-    console.log('[ContainerFlowModal] updateCurrentNodes called with', nodes.length, 'nodes');
-    console.log('[ContainerFlowModal] nodes:', nodes.map(n => ({ id: n.id, type: n.type })));
     currentNodesRef.current = nodes;
     setCurrentNodes(nodes);
   }, []);

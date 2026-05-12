@@ -895,13 +895,16 @@ export default function App() {
 
     // Container nodes (Method, While, For, ForEach) open flow editor modal
     if (['Method', 'While', 'For', 'ForEach'].includes(node.type || '')) {
+      // 옛 데이터(start/end, startVal/endVal) fallback (이사님 export 태그 호환)
+      const startVal = node.data.startValue ?? node.data.start ?? node.data.startVal ?? '';
+      const endVal = node.data.endValue ?? node.data.end ?? node.data.endVal ?? '';
       setContainerFlowModal({
         isOpen: true,
         containerId: node.id,
         containerType: node.type as 'Method' | 'While' | 'For' | 'ForEach',
         containerLabel: node.data.label || 'Container',
-        startValue: node.data.startValue || '',
-        endValue: node.data.endValue || '',
+        startValue: startVal,
+        endValue: endVal,
         selectedNode: node.data.selectedNode || '',
         fieldType: node.data.fieldType || 'input',
         fieldName: node.data.fieldName || '',
@@ -1442,13 +1445,17 @@ export default function App() {
 
     // Container nodes (Method, While, For, ForEach) open flow editor modal
     if (['Method', 'While', 'For', 'ForEach'].includes(node.type || '')) {
+      // 옛 데이터(For 노드 start/end, startVal/endVal) → 새 키(startValue/endValue) fallback
+      // 이사님 export 태그는 'start'/'end'이고, 이전 코드에서 'startVal'/'endVal'로 저장된 케이스도 있음
+      const startVal = node.data.startValue ?? node.data.start ?? node.data.startVal ?? '';
+      const endVal = node.data.endValue ?? node.data.end ?? node.data.endVal ?? '';
       setContainerFlowModal({
         isOpen: true,
         containerId: node.id,
         containerType: node.type as 'Method' | 'While' | 'For' | 'ForEach',
         containerLabel: node.data.label || 'Container',
-        startValue: node.data.startValue || '',
-        endValue: node.data.endValue || '',
+        startValue: startVal,
+        endValue: endVal,
         selectedNode: node.data.selectedNode || '',
         fieldType: node.data.fieldType || 'input',
         fieldName: node.data.fieldName || '',
@@ -2146,7 +2153,7 @@ export default function App() {
         }
         // import 시 이사님 태그 → 내부 필드명 변환 (S010 역방향)
         const IMPORT_RENAME: Record<string, Record<string, string>> = {
-          For:     { start: 'startVal', end: 'endVal' },
+          For:     { start: 'startValue', end: 'endValue', startVal: 'startValue', endVal: 'endValue' },
           Script:  { type: 'scriptType' },
           Process: { serviceTypeInput: 'serviceTypeInputs' },
         };
@@ -2594,6 +2601,7 @@ export default function App() {
                   componentId: n.data.ido.componentId || '',
                   type: n.data.ido.type || 'IMO',
                 } : undefined,
+                parentId: n.parentId, // 컨테이너 내부 노드면 부모 추적 가능
               };
             })
         }

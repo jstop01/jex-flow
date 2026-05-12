@@ -27,17 +27,17 @@ export interface TransformConfig {
 export interface SourceField {
   nodeId: string;
   fieldName: string;
-  transform?: TransformConfig; // 소스별 변환 함수
+  transform?: TransformConfig; // 소스별 변환 함수 (단수, 1개)
 }
 
 // 매핑 연결 정보
+// 변환은 sources[i].transform 에만 존재 (매핑 레벨 변환 없음 — 이사님 확정 구조)
 export interface MappingConnection {
   id: string;
   sources: SourceField[];
   targetNodeId: string;
   targetFieldName: string;
   separator?: string;       // 다중 소스 연결 시 구분자 (기본: "")
-  transform?: TransformConfig; // 변환 함수 설정
 }
 
 // 필드 정보 (Record 타입의 children 지원)
@@ -58,6 +58,7 @@ interface AvailableNodeInfo {
     componentId: string;
     type: string;
   };
+  parentId?: string; // 컨테이너 노드의 자식이면 부모 컨테이너 id (외부 데이터 접근 시 사용)
 }
 
 interface MappingEditorModalProps {
@@ -191,7 +192,7 @@ export const MappingEditorModal = ({
   const [autoMapModalOpen, setAutoMapModalOpen] = useState(false);
   const [autoMapMode, setAutoMapMode] = useState<'depth' | 'order' | 'smart'>('depth');
 
-  // Transform 모달 상태
+  // Transform 모달 상태 (단일 변환 — sources[i].transform 1개만 편집)
   const [transformModalOpen, setTransformModalOpen] = useState(false);
   const [editingTransformId, setEditingTransformId] = useState<string | null>(null);
   const [editingSourceIndex, setEditingSourceIndex] = useState<number | null>(null);
@@ -249,37 +250,43 @@ export const MappingEditorModal = ({
 
   // Find all upstream (ancestor) nodes for the current node
   // Returns nodes that are connected via incoming edges (source -> target chain)
+  // 컨테이너 내부 노드의 경우 부모 컨테이너 chain의 upstream도 포함 (외부 데이터 접근)
   const upstreamFilteredNodes = useMemo(() => {
-    if (!nodeId || !edges || edges.length === 0) {
-      return []; // Return empty if not connected
-    }
+    if (!nodeId) return [];
 
     const upstreamIds = new Set<string>();
     const queue = [nodeId];
     const visited = new Set<string>();
+
+    // 빠른 parentId 조회용 맵
+    const parentMap = new Map<string, string>();
+    availableNodes.forEach(n => {
+      if (n.parentId) parentMap.set(n.id, n.parentId);
+    });
 
     while (queue.length > 0) {
       const currentId = queue.shift()!;
       if (visited.has(currentId)) continue;
       visited.add(currentId);
 
-      // Find all edges where current node is the target (incoming edges)
-      edges.forEach(edge => {
+      // 1) edges 따라 upstream (incoming edges)
+      (edges || []).forEach(edge => {
         if (edge.target === currentId && !upstreamIds.has(edge.source)) {
           upstreamIds.add(edge.source);
           queue.push(edge.source);
         }
       });
+
+      // 2) parentId 따라 컨테이너 chain 추적 (컨테이너의 upstream도 외부 데이터로 보임)
+      const parentId = parentMap.get(currentId);
+      if (parentId && !visited.has(parentId)) {
+        upstreamIds.add(parentId);
+        queue.push(parentId);
+      }
     }
 
-    // If no upstream nodes found, return empty array
-    if (upstreamIds.size === 0) {
-      return [];
-    }
-
-    // Filter available nodes to only include upstream nodes
-    const filtered = availableNodes.filter(node => upstreamIds.has(node.id));
-    return filtered;
+    if (upstreamIds.size === 0) return [];
+    return availableNodes.filter(node => upstreamIds.has(node.id));
   }, [nodeId, edges, availableNodes]);
 
   // Find all downstream (descendant) nodes for the current node
@@ -318,31 +325,45 @@ export const MappingEditorModal = ({
 
   useEffect(() => {
     if (isOpen) {
-      // 기존 매핑 형식을 새로운 sources 배열 형식으로 마이그레이션
-      const migratedMappings = (initialMappings || []).map((mapping: any) => {
-        // 이미 sources 배열이 있으면 fieldIndex 제거하고 사용
+      // 기존 매핑 형식을 정규화된 형식으로 마이그레이션
+      // 정책: 변환은 sources[i].transform 에만 존재. 매핑 레벨 transform/transformChain 제거.
+      // 옛 데이터의 매핑 레벨 변환은 sources[0].transform 으로 이전(없으면 그대로).
+      const migratedMappings = (initialMappings || []).map((mapping: any): MappingConnection => {
+        // 케이스 A: 이미 sources 배열이 있는 신형식
         if (mapping.sources && Array.isArray(mapping.sources)) {
-          return {
-            ...mapping,
-            sources: mapping.sources.map((s: any) => ({
+          // 옛 매핑 레벨 transform이 남아있고 sources[0].transform이 비어있으면 이전
+          const legacyMappingTransform = mapping.transform;
+          const sources = mapping.sources.map((s: any, i: number) => {
+            const fromLegacy = i === 0 && !s?.transform && legacyMappingTransform
+              ? legacyMappingTransform
+              : s?.transform;
+            return {
               nodeId: s.nodeId,
               fieldName: s.fieldName,
-            })),
-          } as MappingConnection;
+              transform: fromLegacy,
+            };
+          });
+          return {
+            id: mapping.id,
+            sources,
+            targetNodeId: mapping.targetNodeId,
+            targetFieldName: mapping.targetFieldName,
+            separator: mapping.separator,
+          };
         }
 
-        // 기존 형식 (sourceNodeId, sourceFieldName)을 새 형식으로 변환
+        // 케이스 B: 옛 평탄 형식 (sourceNodeId, sourceFieldName)
         return {
           id: mapping.id,
           sources: [{
             nodeId: mapping.sourceNodeId,
             fieldName: mapping.sourceFieldName,
+            transform: mapping.transform,
           }],
           targetNodeId: mapping.targetNodeId,
           targetFieldName: mapping.targetFieldName,
           separator: mapping.separator,
-          transform: mapping.transform,
-        } as MappingConnection;
+        };
       });
 
       setMappings(migratedMappings);
@@ -953,21 +974,76 @@ export const MappingEditorModal = ({
   // 연결선 데이터
   const connectionLines = useMemo(() => getConnectionLines(), [getConnectionLines, mappings, refsReady, sourceNodeId, targetNodeId, updateCounter]);
 
+  // export JSON의 키 순서/구조를 일관되게 만드는 정규화 함수
+  // (브라우저는 객체 키 삽입 순서를 유지하므로, 동일 순서로 키를 넣으면 JSON 구조가 매번 같음)
+  const canonicalizeTransform = (t?: TransformConfig): TransformConfig | undefined => {
+    if (!t || t.type === 'none') return undefined;
+    const params = t.params || {};
+    return {
+      type: t.type,
+      params: {
+        // 함수 변환에서 자주 쓰는 키들을 고정 순서로 노출
+        ...(params.funcId !== undefined ? { funcId: params.funcId } : {}),
+        ...(params.funcNm !== undefined ? { funcNm: params.funcNm } : {}),
+        ...(params.fieldValues !== undefined ? { fieldValues: params.fieldValues } : {}),
+        // 기타 빌트인 변환용 키 (substring/replace 등)
+        ...(params.start !== undefined ? { start: params.start } : {}),
+        ...(params.end !== undefined ? { end: params.end } : {}),
+        ...(params.from !== undefined ? { from: params.from } : {}),
+        ...(params.to !== undefined ? { to: params.to } : {}),
+        ...(params.delimiter !== undefined ? { delimiter: params.delimiter } : {}),
+        ...(params.prefix !== undefined ? { prefix: params.prefix } : {}),
+        ...(params.suffix !== undefined ? { suffix: params.suffix } : {}),
+      },
+    };
+  };
+
+  const canonicalizeSource = (s: SourceField): SourceField => {
+    const t = canonicalizeTransform(s.transform);
+    return {
+      nodeId: s.nodeId,
+      fieldName: s.fieldName,
+      ...(t ? { transform: t } : {}),
+    };
+  };
+
+  const canonicalizeMapping = (m: MappingConnection): MappingConnection => {
+    return {
+      id: m.id,
+      sources: (m.sources || []).map(canonicalizeSource),
+      targetNodeId: m.targetNodeId,
+      targetFieldName: m.targetFieldName,
+      ...(m.separator !== undefined && m.separator !== '' ? { separator: m.separator } : {}),
+    };
+  };
+
   const handleSave = () => {
-    onSave(mappings);
+    onSave(mappings.map(canonicalizeMapping));
     onClose();
   };
 
-  // Transform 모달 관련 함수들
-  const openTransformModal = (mappingId: string, sourceIndex?: number) => {
+  // 취소 시 변경사항이 있으면 확인 (canonicalize로 정규화 후 비교)
+  const handleClose = () => {
+    try {
+      const before = JSON.stringify((initialMappings || []).map(canonicalizeMapping));
+      const after = JSON.stringify(mappings.map(canonicalizeMapping));
+      if (before !== after) {
+        if (!window.confirm('변경사항이 저장되지 않았습니다. 정말 취소하시겠습니까?')) {
+          return;
+        }
+      }
+    } catch (e) {
+      // 비교 실패 시 안전하게 닫음
+    }
+    onClose();
+  };
+
+  // Transform 모달 — 항상 sources[sourceIndex].transform 1개를 편집
+  const openTransformModal = (mappingId: string, sourceIndex: number) => {
     const mapping = mappings.find(m => m.id === mappingId);
     setEditingTransformId(mappingId);
-    setEditingSourceIndex(sourceIndex ?? null);
-    if (sourceIndex !== undefined) {
-      setTempTransform(mapping?.sources[sourceIndex]?.transform);
-    } else {
-      setTempTransform(mapping?.transform);
-    }
+    setEditingSourceIndex(sourceIndex);
+    setTempTransform(mapping?.sources[sourceIndex]?.transform);
     setTransformModalOpen(true);
   };
 
@@ -979,16 +1055,13 @@ export const MappingEditorModal = ({
   };
 
   const saveTransformModal = () => {
-    if (editingTransformId) {
+    if (editingTransformId && editingSourceIndex !== null) {
       setMappings(prev => prev.map(m => {
         if (m.id === editingTransformId) {
-          if (editingSourceIndex !== null) {
-            const newSources = m.sources.map((s, i) =>
-              i === editingSourceIndex ? { ...s, transform: tempTransform } : s
-            );
-            return { ...m, sources: newSources };
-          }
-          return { ...m, transform: tempTransform };
+          const newSources = m.sources.map((s, i) =>
+            i === editingSourceIndex ? { ...s, transform: tempTransform } : s
+          );
+          return { ...m, sources: newSources };
         }
         return m;
       }));
@@ -1929,7 +2002,6 @@ export const MappingEditorModal = ({
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {filteredMappings.map((m, mappingIndex) => {
                   const isRecent = m.id === recentlyAddedId;
-                  const hasTransform = m.transform && m.transform.type !== 'none';
                   const sources = m.sources || [];
                   const firstSource = sources[0];
 
@@ -2048,13 +2120,8 @@ export const MappingEditorModal = ({
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
                         {sources.length === 0 ? (
                           <span style={{ color: '#94a3b8', fontSize: '14px' }}>소스 없음</span>
-                        ) : sources.length === 1 ? (
-                          // 단일 소스: 기존 스타일
-                          <span style={{ color: '#059669', fontFamily: 'monospace', fontWeight: '500', fontSize: '14px' }}>
-                            {firstSource.nodeId}.<span style={{ fontWeight: '700' }}>{firstSource.fieldName}</span>
-                          </span>
                         ) : (
-                          // 다중 소스: 각 소스별로 표시 + 순서 관리
+                          // 단일/다중 모두 동일 카드형 (변환은 항상 sources[i].transform)
                           sources.map((source, srcIdx) => (
                             <div
                               key={`${m.id}-src-${srcIdx}`}
@@ -2068,19 +2135,21 @@ export const MappingEditorModal = ({
                                 border: '1px solid #bbf7d0',
                               }}
                             >
-                              {/* 우선순위 표시 */}
-                              <span style={{
-                                fontSize: '10px',
-                                fontWeight: 'bold',
-                                color: '#16a34a',
-                                backgroundColor: '#dcfce7',
-                                padding: '2px 6px',
-                                borderRadius: '10px',
-                                minWidth: '20px',
-                                textAlign: 'center',
-                              }}>
-                                {srcIdx + 1}
-                              </span>
+                              {/* 우선순위 표시 (2개 이상일 때만) */}
+                              {sources.length > 1 && (
+                                <span style={{
+                                  fontSize: '10px',
+                                  fontWeight: 'bold',
+                                  color: '#16a34a',
+                                  backgroundColor: '#dcfce7',
+                                  padding: '2px 6px',
+                                  borderRadius: '10px',
+                                  minWidth: '20px',
+                                  textAlign: 'center',
+                                }}>
+                                  {srcIdx + 1}
+                                </span>
+                              )}
 
                               {/* 소스 필드명 */}
                               <span style={{ color: '#059669', fontFamily: 'monospace', fontWeight: '500', fontSize: '13px', flex: 1 }}>
@@ -2130,80 +2199,64 @@ export const MappingEditorModal = ({
                                 변환
                               </button>
 
-                              {/* 순서 변경 버튼 */}
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); moveSourceUp(m.id, srcIdx); }}
-                                disabled={srcIdx === 0}
-                                style={{
-                                  padding: '2px',
-                                  backgroundColor: 'transparent',
-                                  border: 'none',
-                                  cursor: srcIdx === 0 ? 'not-allowed' : 'pointer',
-                                  color: srcIdx === 0 ? '#d1d5db' : '#64748b',
-                                  display: 'flex',
-                                }}
-                                title="우선순위 높이기"
-                              >
-                                <ArrowUp size={12} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); moveSourceDown(m.id, srcIdx, sources.length); }}
-                                disabled={srcIdx === sources.length - 1}
-                                style={{
-                                  padding: '2px',
-                                  backgroundColor: 'transparent',
-                                  border: 'none',
-                                  cursor: srcIdx === sources.length - 1 ? 'not-allowed' : 'pointer',
-                                  color: srcIdx === sources.length - 1 ? '#d1d5db' : '#64748b',
-                                  display: 'flex',
-                                }}
-                                title="우선순위 낮추기"
-                              >
-                                <ArrowDown size={12} />
-                              </button>
-
-                              {/* 개별 소스 삭제 */}
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); removeSourceFromMapping(m.id, srcIdx); }}
-                                style={{
-                                  padding: '2px',
-                                  backgroundColor: 'transparent',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                  color: '#94a3b8',
-                                  display: 'flex',
-                                }}
-                                onMouseOver={(e) => { e.currentTarget.style.color = '#ef4444'; }}
-                                onMouseOut={(e) => { e.currentTarget.style.color = '#94a3b8'; }}
-                                title="소스 삭제"
-                              >
-                                <X size={12} />
-                              </button>
+                              {/* 순서 변경 / 개별 소스 삭제 (2개 이상일 때만) */}
+                              {sources.length > 1 && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); moveSourceUp(m.id, srcIdx); }}
+                                    disabled={srcIdx === 0}
+                                    style={{
+                                      padding: '2px',
+                                      backgroundColor: 'transparent',
+                                      border: 'none',
+                                      cursor: srcIdx === 0 ? 'not-allowed' : 'pointer',
+                                      color: srcIdx === 0 ? '#d1d5db' : '#64748b',
+                                      display: 'flex',
+                                    }}
+                                    title="우선순위 높이기"
+                                  >
+                                    <ArrowUp size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); moveSourceDown(m.id, srcIdx, sources.length); }}
+                                    disabled={srcIdx === sources.length - 1}
+                                    style={{
+                                      padding: '2px',
+                                      backgroundColor: 'transparent',
+                                      border: 'none',
+                                      cursor: srcIdx === sources.length - 1 ? 'not-allowed' : 'pointer',
+                                      color: srcIdx === sources.length - 1 ? '#d1d5db' : '#64748b',
+                                      display: 'flex',
+                                    }}
+                                    title="우선순위 낮추기"
+                                  >
+                                    <ArrowDown size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); removeSourceFromMapping(m.id, srcIdx); }}
+                                    style={{
+                                      padding: '2px',
+                                      backgroundColor: 'transparent',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      color: '#94a3b8',
+                                      display: 'flex',
+                                    }}
+                                    onMouseOver={(e) => { e.currentTarget.style.color = '#ef4444'; }}
+                                    onMouseOut={(e) => { e.currentTarget.style.color = '#94a3b8'; }}
+                                    title="소스 삭제"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </>
+                              )}
                             </div>
                           ))
                         )}
                       </div>
-
-                      {/* Transform 표시 (단일 소스일 때만) */}
-                      {sources.length <= 1 && hasTransform && (
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '3px',
-                          backgroundColor: '#f0abfc',
-                          color: '#86198f',
-                          fontSize: '11px',
-                          fontWeight: 'bold',
-                          padding: '3px 8px',
-                          borderRadius: '4px',
-                        }}>
-                          <Wand2 size={12} />
-                          {getTransformLabel(m.transform!.type, m.transform!.params)}
-                        </span>
-                      )}
 
                       {/* Record 표시 */}
                       {isRecordMapping && (
@@ -2217,38 +2270,6 @@ export const MappingEditorModal = ({
                         }}>
                           Record
                         </span>
-                      )}
-
-                      {/* Transform 버튼 (단일 소스일 때만) */}
-                      {sources.length <= 1 && !isRecordMapping && (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); openTransformModal(m.id); }}
-                          style={{
-                            padding: '6px 12px',
-                            backgroundColor: hasTransform ? '#fae8ff' : 'transparent',
-                            border: hasTransform ? '1px solid #e879f9' : '1px solid #e2e8f0',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            color: hasTransform ? '#a21caf' : '#64748b',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            fontSize: '12px',
-                            fontWeight: '500',
-                          }}
-                          onMouseOver={(e) => {
-                            e.currentTarget.style.backgroundColor = '#fae8ff';
-                            e.currentTarget.style.borderColor = '#e879f9';
-                          }}
-                          onMouseOut={(e) => {
-                            e.currentTarget.style.backgroundColor = hasTransform ? '#fae8ff' : 'transparent';
-                            e.currentTarget.style.borderColor = hasTransform ? '#e879f9' : '#e2e8f0';
-                          }}
-                        >
-                          <Wand2 size={14} />
-                          변환
-                        </button>
                       )}
 
                       {/* 삭제 버튼 */}
@@ -2300,7 +2321,7 @@ export const MappingEditorModal = ({
         >
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             style={{
               padding: '10px 20px',
               fontSize: '14px',
@@ -2445,14 +2466,17 @@ export const MappingEditorModal = ({
                             key={func.code}
                             type="button"
                             onClick={async () => {
-                              setTempTransform({ type: 'function', params: { funcId: func.code, funcNm: func.name, fieldValues: tempTransform?.params?.funcId === func.code ? tempTransform?.params?.fieldValues : {} } });
+                              // 새 함수로 갱신 (같은 함수면 기존 fieldValues 유지)
+                              const existingValues = (tempTransform?.params?.funcId === func.code && tempTransform?.params?.fieldValues) || {};
+                              setTempTransform({
+                                type: 'function',
+                                params: { funcId: func.code, funcNm: func.name, fieldValues: existingValues },
+                              });
                               // 함수 필드 로드 후 팝업 열기
                               setFuncFieldsLoading(true);
                               try {
                                 const detail = await fetchFunctionFields(func.code);
                                 setFuncFields(detail.fields);
-                                // 기존 입력값 복원 또는 기본값 초기화
-                                const existingValues = (tempTransform?.params?.funcId === func.code && tempTransform?.params?.fieldValues) || {};
                                 const initValues: Record<string, any> = {};
                                 detail.fields.forEach(f => {
                                   initValues[f.id] = existingValues[f.id] ?? f.defaultValue ?? '';
@@ -2683,7 +2707,7 @@ export const MappingEditorModal = ({
               </button>
               <button
                 onClick={() => {
-                  // 필드 값을 transform에 저장
+                  // 필드 값을 tempTransform에 저장 (단일 변환)
                   setTempTransform(prev => ({
                     type: 'function',
                     params: {

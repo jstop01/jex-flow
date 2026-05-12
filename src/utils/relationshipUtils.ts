@@ -18,7 +18,7 @@ const SAVE_DATA_FIELDS: Record<string, string[]> = {
   Script:    ['label', 'scriptType', 'scriptContent', 'variableName', 'mappings'],
   Method:    ['label', 'isExpanded', 'hasChildren', 'internalNodesPreview'],
   While:     ['label', 'expression', 'isExpanded', 'hasChildren', 'internalNodesPreview'],
-  For:       ['label', 'expression', 'isExpanded', 'hasChildren', 'internalNodesPreview', 'iteratorVar', 'startVal', 'endVal', 'stepVal'],
+  For:       ['label', 'expression', 'isExpanded', 'hasChildren', 'internalNodesPreview', 'startValue', 'endValue', 'stepValue'],
   ForEach:   ['label', 'expression', 'isExpanded', 'hasChildren', 'internalNodesPreview', 'iteratorSource', 'selectedNode', 'fieldType', 'fieldName'],
   CallMethod:  ['label', 'selectedGroup'],
 };
@@ -55,7 +55,7 @@ export const cleanNodeForExport = (node: Node): any => {
 
   // 백엔드 호환: 내부 필드명 → 이사님 기존 태그로 변환 (S010)
   const EXPORT_RENAME: Record<string, Record<string, string>> = {
-    For:     { startVal: 'start', endVal: 'end' },
+    For:     { startValue: 'start', endValue: 'end' },
     Script:  { scriptType: 'type' },
     Process: { serviceTypeInputs: 'serviceTypeInput' },
   };
