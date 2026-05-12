@@ -2402,7 +2402,9 @@ export const MappingEditorModal = ({
               justifyContent: 'center',
               zIndex: 100001,
             }}
-            onClick={(e) => {
+            // onClick 대신 onMouseDown: 모달 내부 input에서 drag 시작 → backdrop에서 mouseup으로 끝나는
+            // 케이스에 click이 발생해 모달이 닫히는 문제 방지
+            onMouseDown={(e) => {
               if (e.target === e.currentTarget) closeTransformModal();
             }}
           >
@@ -2604,7 +2606,8 @@ export const MappingEditorModal = ({
             justifyContent: 'center',
             zIndex: 100003,
           }}
-          onClick={(e) => { if (e.target === e.currentTarget) setFuncFieldModalOpen(false); }}
+          // onMouseDown: input drag로 인한 의도치 않은 닫힘 방지
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setFuncFieldModalOpen(false); }}
         >
           <div
             style={{
@@ -2777,7 +2780,8 @@ export const MappingEditorModal = ({
             justifyContent: 'center',
             zIndex: 100002,
           }}
-          onClick={(e) => { if (e.target === e.currentTarget) setAutoMapModalOpen(false); }}
+          // onMouseDown: input drag로 인한 의도치 않은 닫힘 방지
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setAutoMapModalOpen(false); }}
         >
           <div
             style={{
