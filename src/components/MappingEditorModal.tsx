@@ -1039,12 +1039,37 @@ export const MappingEditorModal = ({
   };
 
   // Transform 모달 — 항상 sources[sourceIndex].transform 1개를 편집
+  // 기존에 함수 변환이 등록되어 있으면 함수 필드 입력 팝업까지 자동으로 열어서 바로 수정 가능
   const openTransformModal = (mappingId: string, sourceIndex: number) => {
     const mapping = mappings.find(m => m.id === mappingId);
+    const existing = mapping?.sources[sourceIndex]?.transform;
     setEditingTransformId(mappingId);
     setEditingSourceIndex(sourceIndex);
-    setTempTransform(mapping?.sources[sourceIndex]?.transform);
+    setTempTransform(existing);
     setTransformModalOpen(true);
+
+    // 기존 함수 변환 있음 → 함수 필드 입력 팝업도 즉시 오픈 (기존 값 미리 채움)
+    if (existing && existing.type === 'function' && existing.params?.funcId) {
+      const funcId = existing.params.funcId;
+      const existingValues = existing.params.fieldValues || {};
+      setFuncFieldsLoading(true);
+      fetchFunctionFields(funcId)
+        .then(detail => {
+          setFuncFields(detail.fields);
+          const initValues: Record<string, any> = {};
+          detail.fields.forEach(f => {
+            initValues[f.id] = existingValues[f.id] ?? f.defaultValue ?? '';
+          });
+          setFuncFieldValues(initValues);
+          setFuncFieldModalOpen(true);
+        })
+        .catch(err => {
+          console.error('함수 필드 로드 실패:', err);
+        })
+        .finally(() => {
+          setFuncFieldsLoading(false);
+        });
+    }
   };
 
   const closeTransformModal = () => {
@@ -2707,15 +2732,29 @@ export const MappingEditorModal = ({
               </button>
               <button
                 onClick={() => {
-                  // 필드 값을 tempTransform에 저장 (단일 변환)
-                  setTempTransform(prev => ({
+                  // 필드 값을 합쳐 최종 transform 객체 만들기
+                  const updated: TransformConfig = {
                     type: 'function',
                     params: {
-                      ...prev?.params,
+                      ...tempTransform?.params,
                       fieldValues: { ...funcFieldValues },
                     },
-                  }));
+                  };
+                  // 매핑에 즉시 반영 (변환 함수 설정 모달 [적용] 단계 생략)
+                  if (editingTransformId && editingSourceIndex !== null) {
+                    setMappings(prev => prev.map(m => {
+                      if (m.id === editingTransformId) {
+                        const newSources = m.sources.map((s, i) =>
+                          i === editingSourceIndex ? { ...s, transform: updated } : s
+                        );
+                        return { ...m, sources: newSources };
+                      }
+                      return m;
+                    }));
+                  }
+                  // 두 모달 모두 닫기
                   setFuncFieldModalOpen(false);
+                  closeTransformModal();
                 }}
                 style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}
               >
