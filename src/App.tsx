@@ -1942,9 +1942,8 @@ export default function App() {
       updateNodeData(containerId, 'startValue', loopData.startValue || '');
       updateNodeData(containerId, 'endValue', loopData.endValue || '');
     } else if (loopData && containerType === 'ForEach') {
-      updateNodeData(containerId, 'selectedNode', loopData.selectedNode || '');
-      updateNodeData(containerId, 'fieldType', loopData.fieldType || 'input');
-      updateNodeData(containerId, 'fieldName', loopData.fieldName || '');
+      // While과 동일 패턴: expression 하나만 저장
+      updateNodeData(containerId, 'expression', loopData.expression || '');
     } else if (loopData && containerType === 'While') {
       updateNodeData(containerId, 'expression', loopData.expression || '');
     }

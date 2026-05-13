@@ -1209,9 +1209,8 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
         updateNodeData(containerId, 'startValue', loopData.startValue || '');
         updateNodeData(containerId, 'endValue', loopData.endValue || '');
       } else if (loopData && containerType === 'ForEach') {
-        updateNodeData(containerId, 'selectedNode', loopData.selectedNode || '');
-        updateNodeData(containerId, 'fieldType', loopData.fieldType || 'input');
-        updateNodeData(containerId, 'fieldName', loopData.fieldName || '');
+        // While과 동일 패턴: expression 하나만 저장
+        updateNodeData(containerId, 'expression', loopData.expression || '');
       } else if (loopData && containerType === 'While') {
         updateNodeData(containerId, 'expression', loopData.expression || '');
       }
@@ -1797,7 +1796,8 @@ export const ContainerFlowModal = ({
     if (containerType === 'For') {
       loopData = { startValue, endValue };
     } else if (containerType === 'ForEach') {
-      loopData = { selectedNode, fieldType, fieldName };
+      // While과 동일 패턴: expression 단일 입력으로 통합
+      loopData = { expression };
     } else if (containerType === 'While') {
       loopData = { expression };
     }
@@ -1908,8 +1908,22 @@ export const ContainerFlowModal = ({
             </div>
           )}
 
-          {/* ForEach Node - 노드 선택 콤보 + 필드 선택 콤보 */}
+          {/* ForEach Node - expression 입력 (While 패턴 통일) */}
           {containerType === 'ForEach' && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[#5277f7] font-mono font-bold">foreach (</span>
+              <input
+                type="text"
+                value={expression}
+                onChange={(e) => setExpression(e.target.value)}
+                placeholder="expression..."
+                className="w-64 px-3 py-1.5 text-sm font-mono border border-slate-200 rounded-lg focus:outline-none focus:border-[#5277f7] focus:ring-2 focus:ring-blue-100 bg-white"
+              />
+              <span className="text-xs text-[#5277f7] font-mono font-bold">)</span>
+            </div>
+          )}
+          {/* ForEach (legacy 노드/구분/필드 콤보 — expression 통합으로 비활성. 코드 보존 위해 false 분기로 차단) */}
+          {false && containerType === 'ForEach' && (
             <div className="flex items-center gap-3">
               {/* 노드 선택 콤보박스 */}
               <div className="relative">

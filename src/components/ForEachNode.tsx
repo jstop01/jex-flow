@@ -110,11 +110,6 @@ export const ForEachNode = memo(({ data, selected, id }: NodeProps) => {
           <div className="flex flex-col flex-1 min-w-0">
              <span className="text-sm font-bold text-lime-700 uppercase tracking-wider">ForEach</span>
              <span className="text-slate-400 text-[10px] font-mono">nodeId: {id}</span>
-             {(data.selectedNode || data.fieldName) && (
-               <span className="text-xs text-lime-600 mt-1 truncate">
-                 {data.selectedNode || '-'}.{data.fieldType || 'input'}.{data.fieldName || '-'}
-               </span>
-             )}
           </div>
         </div>
 

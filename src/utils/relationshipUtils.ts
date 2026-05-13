@@ -19,7 +19,7 @@ const SAVE_DATA_FIELDS: Record<string, string[]> = {
   Method:    ['label', 'isExpanded', 'hasChildren', 'internalNodesPreview'],
   While:     ['label', 'expression', 'isExpanded', 'hasChildren', 'internalNodesPreview'],
   For:       ['label', 'expression', 'isExpanded', 'hasChildren', 'internalNodesPreview', 'startValue', 'endValue', 'stepValue'],
-  ForEach:   ['label', 'expression', 'isExpanded', 'hasChildren', 'internalNodesPreview', 'iteratorSource', 'selectedNode', 'fieldType', 'fieldName'],
+  ForEach:   ['label', 'expression', 'isExpanded', 'hasChildren', 'internalNodesPreview'],
   CallMethod:  ['label', 'selectedGroup'],
 };
 
@@ -51,6 +51,12 @@ export const cleanNodeForExport = (node: Node): any => {
         cleanData[field] = data[field];
       }
     }
+  }
+
+  // Script 노드: scriptType이 비어있어도 export JSON에 type 키 누락되지 않도록 'java' fallback
+  // (default 강제가 아니라 export 시점의 안전망 — 사용자가 모달에서 'groovy' 선택했으면 그 값 그대로)
+  if (type === 'Script' && (cleanData.scriptType === undefined || cleanData.scriptType === '')) {
+    cleanData.scriptType = 'java';
   }
 
   // 백엔드 호환: 내부 필드명 → 이사님 기존 태그로 변환 (S010)

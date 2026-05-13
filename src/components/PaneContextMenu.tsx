@@ -110,6 +110,7 @@ export const PaneContextMenu = ({
                 onClick={() => { onToolModeChange('select'); }}
                 className={`${iconBtnClass} flex-1 ${toolMode === 'select' ? iconBtnActiveClass : iconBtnDefaultClass}`}
                 title="선택 모드 (Ctrl/Cmd + 1)"
+                aria-label="선택 모드"
               >
                 <MousePointer2 size={14} />
               </button>
@@ -117,6 +118,7 @@ export const PaneContextMenu = ({
                 onClick={() => { onToolModeChange('pan'); }}
                 className={`${iconBtnClass} flex-1 ${toolMode === 'pan' ? iconBtnActiveClass : iconBtnDefaultClass}`}
                 title="이동 모드 (Ctrl/Cmd + 2)"
+                aria-label="이동 모드"
               >
                 <Hand size={14} />
               </button>
@@ -129,6 +131,7 @@ export const PaneContextMenu = ({
                 disabled={!canUndo}
                 className={`${iconBtnClass} ${!canUndo ? iconBtnDisabledClass : iconBtnDefaultClass}`}
                 title="실행 취소"
+                aria-label="실행 취소"
               >
                 <Undo size={14} />
               </button>
@@ -137,6 +140,7 @@ export const PaneContextMenu = ({
                 disabled={!canRedo}
                 className={`${iconBtnClass} ${!canRedo ? iconBtnDisabledClass : iconBtnDefaultClass}`}
                 title="다시 실행"
+                aria-label="다시 실행"
               >
                 <Redo size={14} />
               </button>
@@ -149,6 +153,7 @@ export const PaneContextMenu = ({
               onClick={() => { onDelete(); onClose(); }}
               className={`${iconBtnClass} text-red-500 hover:bg-red-50 hover:text-red-600`}
               title="선택 삭제"
+              aria-label="선택 삭제"
             >
               <Trash2 size={14} />
             </button>
@@ -157,6 +162,7 @@ export const PaneContextMenu = ({
               onClick={() => { onExport(); onClose(); }}
               className={`${iconBtnClass} ${iconBtnDefaultClass}`}
               title="내보내기"
+              aria-label="JSON 내보내기"
             >
               <Upload size={14} />
             </button>
@@ -164,6 +170,7 @@ export const PaneContextMenu = ({
               onClick={() => { onImport(); onClose(); }}
               className={`${iconBtnClass} ${iconBtnDefaultClass}`}
               title="가져오기"
+              aria-label="JSON 가져오기"
             >
               <Download size={14} />
             </button>
