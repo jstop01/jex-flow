@@ -1,0 +1,220 @@
+# 2026-01-13 수정사항
+
+## 1. 버튼 롤백 - 더블클릭 기능 복원
+
+버튼 기반 편집 기능이 ReactFlow 이벤트 핸들링과 충돌하여 작동하지 않아 더블클릭 방식으로 롤백
+
+### 수정된 파일:
+
+1. **src/App.tsx**
+   - onNodeDoubleClick 핸들러 복원
+   - ReactFlow 컴포넌트에 onNodeDoubleClick prop 추가
+
+2. **src/components/ContainerFlowModal.tsx**
+   - FlowCanvas 내부에 onNodeDoubleClick 핸들러 복원
+   - ReactFlow 컴포넌트에 onNodeDoubleClick prop 추가
+
+3. **src/components/ConditionNode.tsx**
+   - Edit 버튼 제거 (Pencil 아이콘 포함)
+   - "더블클릭하여 편집" 힌트 추가
+
+4. **src/components/ScriptNode.tsx**
+   - Edit Script 버튼 제거 (Pencil 아이콘 포함)
+   - "더블클릭하여 편집" 힌트 추가
+
+5. **src/components/MappingNode.tsx**
+   - Edit Mapping 버튼 제거 (Pencil 아이콘 포함)
+   - "더블클릭하여 편집" 힌트 추가
+
+6. **src/components/ErrorNode.tsx**
+   - Edit 버튼 제거 (Pencil 아이콘 포함)
+   - "더블클릭하여 편집" 힌트 추가
+
+7. **src/components/ForNode.tsx**
+   - Expand 버튼 제거 (Maximize2 아이콘 포함)
+   - "더블클릭하여 편집" 힌트 추가
+
+8. **src/components/ForEachNode.tsx**
+   - Expand 버튼 제거 (Maximize2 아이콘 포함)
+   - "더블클릭하여 편집" 힌트 추가
+
+9. **src/components/WhileNode.tsx**
+   - Expand 버튼 제거 (Maximize2 아이콘 포함)
+   - "더블클릭하여 편집" 힌트 추가
+
+10. **src/components/GroupNode.tsx**
+    - Expand 버튼 제거 (Maximize2 아이콘 포함)
+    - "더블클릭하여 편집" 힌트 추가
+
+### 동작 방식:
+- 모든 노드를 더블클릭하면 해당 편집 모달이 열림
+- 컨테이너 노드(Method, For, ForEach, While)는 더블클릭 시 ContainerFlowModal이 열림
+- IfElse, Script, Mapping, Error 노드는 더블클릭 시 해당 편집 모달이 열림
+
+---
+
+## 2. "더블클릭하여 편집" 힌트 텍스트 제거
+
+모든 노드 컴포넌트에서 "더블클릭하여 편집" 힌트 문구 제거
+
+### 수정된 파일:
+- ConditionNode.tsx, ScriptNode.tsx, MappingNode.tsx, ErrorNode.tsx
+- ForNode.tsx, ForEachNode.tsx, WhileNode.tsx, GroupNode.tsx
+
+---
+
+## 3. 컨테이너 노드 내부 노드 실루엣 미리보기 기능
+
+컨테이너 노드(Method, For, ForEach, While)의 하얀 바디 영역에 내부 노드들의 실루엣을 미리보기로 표시
+
+### 수정된 파일:
+
+1. **src/App.tsx**
+   - `handleContainerFlowSave` 함수에 `internalNodesPreview` 데이터 저장 로직 추가
+   - 내부 노드의 id, type, label, position 정보를 컨테이너 노드 데이터에 저장
+
+2. **src/components/ForNode.tsx**
+   - `nodeTypeColors` 색상 매핑 추가
+   - `normalizedPreviews` useMemo로 노드 위치 정규화 계산
+   - 바디 영역에 실루엣 미리보기 렌더링
+
+3. **src/components/ForEachNode.tsx**
+   - 동일한 실루엣 미리보기 기능 추가
+
+4. **src/components/WhileNode.tsx**
+   - 동일한 실루엣 미리보기 기능 추가
+
+5. **src/components/GroupNode.tsx**
+   - 동일한 실루엣 미리보기 기능 추가
+
+### 동작 방식:
+- 컨테이너 노드 저장 시 직접 자식 노드들(start/end 제외)의 정보를 `internalNodesPreview`에 저장
+- 컨테이너가 축소 상태일 때 바디 영역에 노드 타입별 색상으로 실루엣 표시
+- 노드 위치는 미리보기 영역에 맞게 정규화됨
+- 마우스 hover 시 노드 라벨/타입 표시 (title 속성)
+
+---
+
+## 4. 실루엣 미리보기 개선 - 세로 플로우 레이아웃
+
+컨테이너 노드의 실루엣 미리보기를 색상 기반에서 세로 플로우 형태로 변경
+
+### 수정된 파일:
+
+1. **src/components/ForNode.tsx**
+   - `nodeTypeColors` 제거
+   - `normalizedPreviews` 대신 `sortedPreviews` (Y 위치 기준 정렬) 사용
+   - 색상 제거, 회색(bg-slate-300) 통일
+   - 노드 간 연결선 추가 (w-px h-2 bg-slate-300)
+
+2. **src/components/ForEachNode.tsx**
+   - 동일한 세로 플로우 레이아웃 적용
+
+3. **src/components/WhileNode.tsx**
+   - 동일한 세로 플로우 레이아웃 적용
+
+4. **src/components/GroupNode.tsx**
+   - 동일한 세로 플로우 레이아웃 적용
+
+5. **src/App.tsx**
+   - `handleContainerFlowSave`에서 Start/End 노드도 미리보기에 포함
+
+### 동작 방식:
+- Y 좌표 기준 정렬하여 세로로 노드 나열
+- 모든 노드가 동일한 회색 사각형으로 표시
+- 노드 사이에 회색 연결선 표시
+- 메인 화면의 컨테이너 미리보기와 유사한 스타일
+
+---
+
+## 5. 컨테이너 노드 생성 시 기본 Start/End 미리보기
+
+컨테이너 노드가 처음 생성될 때 Start와 End 노드 실루엣이 바로 표시되도록 개선
+
+### 수정된 파일:
+
+1. **src/App.tsx**
+   - `addNode` 함수에 `defaultInternalNodesPreview` 추가
+   - 컨테이너 노드(Method, For, ForEach, While) 생성 시 기본 Start/End 미리보기 데이터 포함
+
+### 코드:
+```typescript
+const defaultInternalNodesPreview = isGroupLike ? [
+  { id: `${id}-start`, type: 'Start', label: 'Start', position: { x: (containerWidth - 180) / 2, y: 100 } },
+  { id: `${id}-end`, type: 'End', label: 'End', position: { x: (containerWidth - 180) / 2, y: containerHeight - 120 } },
+] : undefined;
+```
+
+### 동작 방식:
+- 컨테이너 노드 생성 시 바로 Start/End 실루엣 표시
+- 더블클릭으로 컨테이너 열어서 노드 편집 후 저장하면 실제 내부 노드로 업데이트됨
+
+---
+
+## 6. MappingEditorModal 변환 함수(Transform) 기능 추가
+
+매핑 연결에 substring, toUpperCase, toLowerCase, trim, replace, concat 등 문자열 변환 함수를 적용할 수 있는 기능 추가
+
+### 수정된 파일:
+
+1. **src/components/MappingEditorModal.tsx**
+   - `TransformType` 타입 정의: `'none' | 'substring' | 'toUpperCase' | 'toLowerCase' | 'trim' | 'replace' | 'concat' | 'split'`
+   - `TransformConfig` 인터페이스 추가 (type, params 포함)
+   - `MappingConnection` 인터페이스에 `transform?: TransformConfig` 필드 추가
+   - `editingTransformId` 상태 추가 (변환 편집 중인 매핑 추적)
+   - `getTransformLabel()` 함수 추가 (변환 타입 표시 이름)
+   - `updateMappingTransform()` 함수 추가 (변환 설정 업데이트)
+   - 매핑 목록 UI에 변환 버튼 및 편집 패널 추가
+   - Wand2, Settings2 아이콘 import
+
+### 지원하는 변환 함수:
+| 타입 | 설명 | 파라미터 |
+|------|------|----------|
+| none | 없음 | - |
+| substring | 부분 문자열 추출 | start, end |
+| toUpperCase | 대문자 변환 | - |
+| toLowerCase | 소문자 변환 | - |
+| trim | 공백 제거 | - |
+| replace | 문자열 치환 | from, to |
+| concat | 문자열 연결 | prefix, suffix |
+
+### UI 동작:
+- 각 매핑 항목에 "변환" 버튼 표시
+- 클릭 시 변환 함수 선택 패널 확장
+- 변환 타입 선택 버튼들 (none, substring, toUpperCase, ...)
+- 파라미터 입력 필드 (substring: start/end, replace: from/to, concat: prefix/suffix)
+- 적용된 변환은 매핑 라인에 보라색 배지로 표시
+
+### 예시 표시:
+- `node1.output.name` → **[Substring(0, 3)]** → `node2.input.shortName`
+- `node1.output.email` → **[대문자]** → `node2.input.EMAIL`
+
+---
+
+## 7. MappingEditorModal - 소스에 Start 노드, 타겟에 End 노드 표시
+
+매핑 에디터에서 소스 노드 목록에 Start 노드가, 타겟 노드 목록에 End 노드가 표시되도록 수정
+
+### 수정된 파일:
+
+1. **src/App.tsx**
+   - `availableNodes` 필터에서 `isStart`/`isEnd` 조건 제거
+   - Start/End 노드가 MappingEditorModal의 availableNodes에 포함되도록 함
+
+2. **src/components/MappingEditorModal.tsx**
+   - `startNode`, `endNode` 변수 추가 (availableNodes에서 Start/End 타입 노드 찾기)
+   - `sourceNodeCandidates`: upstream 노드 + Start 노드 추가
+   - `targetNodeCandidates`: upstream 노드 + End 노드 추가
+   - `nodesWithOutputs`: Start 노드가 항상 첫 번째에 표시되도록 정렬
+   - `nodesWithInputs`: End 노드가 항상 첫 번째에 표시되도록 정렬
+
+3. **src/components/ContainerFlowModal.tsx**
+   - `currentContainerNodes`에서 start/end 노드 필터 제거
+   - Start/End 노드에 올바른 type 속성 지정 (`'Start'`, `'End'`)
+
+### 동작 방식:
+- 소스 노드 드롭다운: Start 노드가 첫 번째로 표시됨 (워크플로우 입력 데이터)
+- 타겟 노드 드롭다운: End 노드가 첫 번째로 표시됨 (워크플로우 출력 데이터)
+- Start 노드의 outputs를 소스로, End 노드의 inputs를 타겟으로 매핑 가능
+
+---

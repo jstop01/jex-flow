@@ -1,0 +1,70 @@
+# 2026-01-29 수정사항
+
+## 1. Flow Editor 저장 시 탭 구분 버그 수정
+
+### 문제:
+- Flow Editor 버튼을 눌러 에디터를 열고 저장할 때, 에디터를 연 시점의 탭이 아닌 저장 시점의 활성 탭에 데이터가 저장됨
+- 예: GET 탭에서 에디터를 열고 작업 후 탭을 POST로 바꾼 뒤 저장하면 POST의 comFlowData에 저장되는 문제
+
+### 원인:
+- `handleFlowSave`에서 `_thisPage.getCurrentTabSuffix()`를 호출하여 메시지 수신 시점의 활성 탭을 참조
+- Flow Editor는 특정 탭에서 열렸지만, 저장 시 어느 탭이 활성인지와 무관하게 원래 탭에 저장되어야 함
+
+### 해결:
+- `_thisInfo`에 `flowEditorTabSuffix` 속성 추가
+- `openFlowEditor`에서 에디터 오픈 시점의 탭 suffix를 `_thisInfo.flowEditorTabSuffix`에 저장
+- `handleFlowSave`에서 저장된 suffix를 우선 사용하여 올바른 hidden input에 데이터 반영
+
+### 수정된 파일:
+1. **JEXQ/SVC_GRP/P_BIZ/src/main/resources/static/js/menu/svc/svc_0002_01.js**
+   - `_thisInfo` 객체에 `flowEditorTabSuffix: null` 속성 추가
+   - `openFlowEditor` 함수에서 `_thisInfo.flowEditorTabSuffix = suffix;` 추가
+   - `handleFlowSave` 함수에서 `_thisInfo.flowEditorTabSuffix`를 우선 사용하도록 변경
+
+---
+
+## 2. Flow Editor 오픈 시 기존 flow 데이터 로드 기능 추가
+
+### 문제:
+- Flow Editor를 열면 항상 빈 캔버스(기본 Start/End 노드)로 시작됨
+- hidden input(`#comFlowData` 등)에 저장된 기존 flow 데이터가 에디터에 반영되지 않음
+
+### 원인:
+- `svc_0002_01.js`의 `openFlowEditor`에서 `PluginManager.open`의 data로 flowData를 전달하지만, React App(`App.tsx`)에 이를 수신하는 코드가 없음
+- React App은 항상 하드코딩된 `initialNodes`(Start, End)로 시작
+
+### 해결:
+- **App.tsx**: `SET_FLOW_DATA` postMessage를 수신하는 useEffect 추가. 수신 시 `handleImportJson`을 호출하여 flow 데이터 로드. 마운트 완료 후 부모에게 `FLOW_EDITOR_READY` 메시지 전송
+- **svc_0002_01.js**: `FLOW_EDITOR_READY` 메시지를 수신하면 iframe에 `SET_FLOW_DATA` 메시지로 flow JSON 데이터 전송 (일회성 리스너)
+
+### 수정된 파일:
+1. **jex-flow/src/App.tsx**
+   - `handleImportJson` 이후에 `SET_FLOW_DATA` 메시지 리스너 useEffect 추가
+   - 마운트 시 `FLOW_EDITOR_READY` postMessage 전송
+2. **JEXQ/SVC_GRP/P_BIZ/src/main/resources/static/js/menu/svc/svc_0002_01.js**
+   - `openFlowEditor`에서 `FLOW_EDITOR_READY` 수신 리스너 추가
+   - 수신 시 iframe의 contentWindow에 `SET_FLOW_DATA` postMessage 전송
+
+---
+
+## 3. Start/End 노드에 Process UI(serviceType 드롭다운) 표시되는 버그 수정
+
+### 문제:
+- Flow Editor를 열면 Start/End 노드에 serviceType 선택 드롭다운과 설정(⚙) 버튼이 표시됨
+- Start/End 노드는 단순 시작/종료 표시만 해야 함
+
+### 원인:
+- `nodeTypes`에서 `Start: ProcessNode`, `End: ProcessNode`로 매핑되어 있음
+- ProcessNode는 `isNormalNode = !data.isStart && !data.isEnd`로 판별하여 serviceType UI 표시 여부를 결정
+- 부모에서 전달되는 JSON 데이터(`defalutNode`)에 `isStart`/`isEnd` 플래그가 없었음
+- `handleImportJson`에서도 type 기반 자동 보정이 없었음
+
+### 해결:
+- `defalutNode`의 Start 노드에 `isStart: true`, End 노드에 `isEnd: true` 추가
+- `handleImportJson`에서 `type === 'Start'`이면 `isStart: true`, `type === 'End'`이면 `isEnd: true` 자동 보정
+
+### 수정된 파일:
+1. **jex-flow/src/App.tsx**
+   - `handleImportJson`의 노드 복원 시 Start/End 타입에 대해 `isStart`/`isEnd` 플래그 자동 보정
+2. **JEXQ/SVC_GRP/P_BIZ/src/main/resources/static/js/menu/svc/svc_0002_01.js**
+   - `defalutNode`의 Start 노드 data에 `isStart: true`, End 노드 data에 `isEnd: true` 추가

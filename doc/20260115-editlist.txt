@@ -1,0 +1,181 @@
+# 2026-01-15 수정사항
+
+## 1. 테스트 시나리오 문서 작성
+
+버전 관리를 위한 전체 기능 테스트 시나리오 문서 생성
+
+### 신규 파일:
+
+**doc/test-scenarios.md**
+
+테스트 시나리오 문서 (13개 카테고리, 100+ 테스트 케이스)
+- 각 노드별 UI 구성, 조작 방법, 예상 결과 상세 기술
+- 각 모달별 UI 구성, 입력 필드, 버튼, 동작 방식 상세 기술
+- 각 컨텍스트 메뉴별 메뉴 항목 구조 및 동작 상세 기술
+
+1. 기본 캔버스 조작 (TC-1.1 ~ TC-1.4)
+   - 패닝, 줌, 도구 모드 전환, 미니맵
+
+2. 노드 생성 및 관리 (TC-2.1 ~ TC-2.7)
+   - 노드 추가, 13개 타입 생성, 선택, 이동, 삭제, ID 변경, 다중 선택
+
+3. 노드 연결 Edge (TC-3.1 ~ TC-3.5)
+   - 연결 생성, 삭제, 자동 분할, 분기 노드 연결
+
+4. 노드별 기능 테스트 (TC-4.1 ~ TC-4.10)
+   - Process, Variable, IfElse, Switch, Script, CallDO, Error, CallMethod
+
+5. 모달 기능 테스트 (TC-5.1 ~ TC-5.7)
+   - IOSettingModal, IDOSearchModal, ScriptEditModal, ForEditModal, ForEachEditModal
+
+6. 컨텍스트 메뉴 테스트 (TC-6.1 ~ TC-6.4)
+   - PaneContextMenu, ContextMenu, GroupContextMenu, MappingContextMenu
+
+7. 컨테이너 노드 테스트 (TC-7.1 ~ TC-7.7)
+   - Method, While, For, ForEach 내부 편집, 미리보기, 중첩
+
+8. 매핑 에디터 테스트 (TC-8.1 ~ TC-8.4)
+   - 기본 매핑, Transform 함수, Start/End 노드 매핑, 삭제
+
+9. Import/Export 테스트 (TC-9.1 ~ TC-9.4)
+   - Export, Import, JSON 형식 검증, Import 후 기능 동작
+
+10. Undo/Redo 테스트 (TC-10.1 ~ TC-10.4)
+    - Undo, Redo, 히스토리 제한, 삭제 후 복원
+
+11. 서비스 API 테스트 (TC-11.1 ~ TC-11.3)
+    - ProcessService, AutocompleteService, Mock 모드
+
+12. IOPanel 테스트 (TC-12.1 ~ TC-12.4)
+    - 노드 정보, IMO/IDO, Mapping, I/O 필드 표시
+
+13. 자동완성 관리 테스트 (TC-13.1 ~ TC-13.4)
+    - 모달 열기, 카테고리 필터, 검색, 동기화
+
+### 부록:
+- 노드 타입별 색상 참조 (15개 노드)
+- 단축키 목록
+
+---
+
+## 2. 자동완성 메서드/예약어 관리 기능 구현 (완료)
+
+Script 노드 편집기에서 사용할 자동완성 데이터를 서버에서 JSON으로 받아와 관리하는 기능
+
+### 신규 파일:
+
+1. **src/types/autocomplete.ts**
+   - AutocompleteCategory 타입 정의 (keyword, dataType, method, snippet, custom)
+   - AutocompleteItem 인터페이스 (id, keyword, category, description, syntax)
+   - AutocompleteDataResponse 인터페이스 (version, lastUpdated, items)
+
+2. **src/data/autocomplete-mock.ts**
+   - MOCK_AUTOCOMPLETE_DATA: 개발용 목 데이터
+   - 87개 자동완성 항목 (예약어 33개, 데이터 타입 10개, 메서드 19개, 스니펫 3개)
+
+3. **src/services/autocompleteService.ts**
+   - fetchAutocompleteData(): 서버에서 자동완성 데이터 조회
+   - syncAutocompleteData(): 서버와 데이터 동기화
+   - USE_MOCK 플래그로 목 모드/실제 API 모드 전환
+
+4. **src/components/AutocompleteManagerModal.tsx**
+   - 자동완성 데이터 관리 모달
+   - 카테고리 필터링 (전체, keyword, dataType, method, snippet, custom)
+   - 키워드 검색 기능
+   - 새로고침/서버 동기화 버튼
+   - 테이블 형태로 데이터 표시 (category, keyword, description, syntax)
+
+### 수정된 파일:
+
+5. **src/App.tsx**
+   - AutocompleteManagerModal import 추가
+   - autocompleteManagerOpen 상태 추가
+   - autocompleteData 상태 추가
+   - AutocompleteManagerModal 컴포넌트 렌더링
+
+6. **src/components/ScriptEditModal.tsx**
+   - autocompleteData props 추가 (서버 데이터 연동)
+   - onOpenAutocompleteManager props 추가 (관리 모달 열기)
+   - 헤더에 "자동완성 관리" 버튼 추가 (Settings 아이콘)
+   - defaultKeywords fallback 처리 (서버 데이터 없을 경우)
+
+---
+
+## 3. Mapping 노드 다중 필드 연결(MultiConcat) 기능 구현
+
+여러 소스 필드와 텍스트를 결합하여 하나의 타겟 필드에 매핑하는 기능
+
+### 사용 시나리오:
+- Field1 + Field2 + "1234" → TargetField
+- 여러 필드 값을 순서대로 결합
+- 필드 사이에 고정 텍스트 삽입 가능
+
+### 수정된 파일:
+
+1. **src/components/MappingEditorModal.tsx**
+   - MultiConcatSourceItem 타입 추가 (type: 'field' | 'text')
+   - MultiConcatConnection 인터페이스 추가 (sources, targetNodeId, targetFieldName)
+   - multiConcatMappings 상태 추가
+   - MultiConcat 편집 모드 상태들 추가 (isMultiConcatMode, editingMultiConcatId 등)
+   - MultiConcat 관련 함수 추가:
+     - startNewMultiConcat(): 새 다중 연결 시작
+     - cancelMultiConcat(): 편집 취소
+     - addMultiConcatSourceField(): 필드 소스 추가
+     - addMultiConcatSourceText(): 텍스트 소스 추가
+     - updateMultiConcatSourceText(): 텍스트 수정
+     - removeMultiConcatSource(): 소스 항목 삭제
+     - moveMultiConcatSource(): 소스 순서 변경 (위/아래)
+     - saveMultiConcat(): 다중 연결 저장
+     - editMultiConcat(): 기존 다중 연결 편집
+     - removeMultiConcat(): 다중 연결 삭제
+   - MultiConcat Section UI 추가:
+     - 다중 필드 연결 헤더 (개수 표시, 새 다중 연결 버튼)
+     - 편집기: 소스 목록, 순서 변경, 텍스트 입력, 필드 선택
+     - 타겟 필드 선택 영역
+     - 결과 미리보기
+     - 저장/취소 버튼
+     - 기존 다중 연결 목록 표시 (편집/삭제 버튼)
+   - onSave 콜백 시그니처 변경: (mappings, multiConcatMappings) => void
+   - Props에 initialMultiConcatMappings 추가
+   - lucide-react 아이콘 추가 (Plus, Type, ArrowUp, ArrowDown, Edit3, Layers)
+
+2. **src/App.tsx**
+   - MultiConcatConnection 타입 import 추가
+   - mappingEditorModal 상태에 multiConcatMappings 추가
+   - handleMappingEditorSave 콜백 수정: multiConcatMappings 파라미터 추가
+   - updateNodeData로 multiConcatMappings 저장
+   - MappingEditorModal에 initialMultiConcatMappings prop 전달
+   - 모든 setMappingEditorModal 호출에 multiConcatMappings 초기화 추가
+
+### UI 구조:
+```
++--------------------------------------------------+
+| [Layers 아이콘] 다중 필드 연결 (N개)   [새 다중 연결] |
++--------------------------------------------------+
+| [편집기 - 편집 모드일 때만 표시]                    |
+| 소스 항목 (연결 순서대로 결합됩니다)                |
+| [1] Field1        [↑][↓][삭제]                  |
+| [2] "텍스트"       [↑][↓][삭제]                  |
+| [3] Field2        [↑][↓][삭제]                  |
+|                                                |
+| [텍스트 추가]                                    |
+|                                                |
+| 필드 추가 (클릭하여 추가)                          |
+| ├─ Node1 (Process)                             |
+| │  + Field1                                    |
+| │  + Field2                                    |
+|                                                |
+| 타겟 필드 선택                                   |
+| ├─ EndNode (End)                               |
+| │  ✓ TargetField                               |
+|                                                |
+| 결과 미리보기:                                   |
+| [Field1] + "텍스트" + [Field2] → TargetField    |
+|                                                |
+| [취소] [추가/수정 완료]                           |
++--------------------------------------------------+
+| [기존 다중 연결 목록]                              |
+| [MULTI] Field1 + "1234" + Field2 → Target [✏][🗑] |
++--------------------------------------------------+
+```
+

@@ -1,0 +1,143 @@
+# 2024-12-23 수정사항
+
+## 1. End Node 여러 개 생성 가능
+
+### 수정된 파일:
+1. **src/components/PaneContextMenu.tsx**
+   - Square 아이콘 import 추가
+   - menuItems 배열에 End 노드 메뉴 항목 추가
+   ```typescript
+   { type: 'end', label: 'End', icon: Square, color: 'text-red-600' }
+   ```
+
+2. **src/App.tsx**
+   - Import 시 End 노드 개수 검증 제거 (1646-1653행)
+   - 삭제 보호 로직 수정: Start만 항상 보호, End는 최소 1개 유지 (951-962행)
+
+3. **src/components/ContextMenu.tsx**
+   - End 노드 ID 변경 허용 (Start만 보호)
+   ```typescript
+   const isProtectedNode = nodeId === 'start';
+   ```
+
+---
+
+## 2. 조건 변수명 EXPRESSION으로 통일
+
+### 변경된 데이터 필드:
+- `condition` → `expression`
+
+### 수정된 파일:
+1. **src/components/ConditionNode.tsx**
+   - `data.condition` → `data.expression`
+   - 플레이스홀더: "더블클릭하여 EXPRESSION 입력"
+
+2. **src/components/ConditionEditModal.tsx**
+   - Props: `initialCondition` → `initialExpression`
+   - State: `condition` → `expression`
+   - 레이블: "EXPRESSION"
+
+3. **src/components/WhileNode.tsx**
+   - `data.condition` → `data.expression`
+ ㅈ
+4. **src/components/ContainerFlowModal.tsx**
+   - LoopData 인터페이스: `condition` → `expression`
+   - Props: `initialCondition` → `initialExpression`
+   - State: `condition` → `expression`
+   - 플레이스홀더: "EXPRESSION..."
+   - Condition 모달 상태: `condition` → `expression`
+   - handleConditionSave: `condition` → `expression`
+
+5. **src/App.tsx**
+   - conditionModal 상태: `condition` → `expression`
+   - containerFlowModal 상태: `condition` → `expression`
+   - handleConditionSave: `condition` → `expression`
+   - handleContainerFlowSave While 저장: `condition` → `expression`
+   - onNodeDoubleClick: `condition` → `expression`
+   - ConditionEditModal props: `initialCondition` → `initialExpression`
+   - ContainerFlowModal props: `initialCondition` → `initialExpression`
+
+---
+
+## 3. Import 마이그레이션
+
+### 수정된 파일:
+1. **src/App.tsx** (1656-1665행)
+   - 기존 JSON의 `condition` 필드를 `expression`으로 자동 마이그레이션
+   ```typescript
+   expression: node.data.expression || node.data.condition,
+   ```
+
+---
+
+---
+
+## 4. UI 텍스트 EXPRESSION으로 통일 (추가 수정)
+
+### 수정된 파일:
+1. **src/components/ContainerFlowModal.tsx**
+   - labelMap: `'Condition'` → `'IF Expression'`
+
+2. **src/components/ConditionEditModal.tsx**
+   - 모달 제목: "IF 조건 수정" → "IF EXPRESSION 수정"
+   - 모달 설명: "조건식을 입력하세요" → "EXPRESSION을 입력하세요"
+
+3. **src/components/ForEditModal.tsx**
+   - 모달 설명: "반복 조건을 설정하세요" → "반복 EXPRESSION을 설정하세요"
+
+4. **src/components/ForEachEditModal.tsx**
+   - 모달 설명: "반복 조건을 설정하세요" → "반복 EXPRESSION을 설정하세요"
+
+---
+
+## 5. ForEach 노드 "구분" 콤보박스 추가
+
+### 요구사항:
+- 노드와 필드 사이에 "구분" 콤보박스 추가 (input/output 선택)
+- 필드에서 "input.변수명" → "변수명"만 표시
+- 구분에서 input 선택 시 input 필드만, output 선택 시 output 필드만 표시
+
+### 수정된 파일:
+
+1. **src/components/ContainerFlowModal.tsx**
+   - LoopData 인터페이스에 `fieldType?: 'input' | 'output'` 추가
+   - ForEach용 state 추가: `fieldType`, `showFieldTypeDropdown`
+   - 구분 드롭다운 UI 컴포넌트 추가 (노드와 필드 사이에 배치)
+   - `getFieldOptions()` 함수 수정: fieldType에 따라 input/output 필터링
+   - 필드 표시에서 prefix 제거 (변수명만 표시)
+   - loopData에 fieldType 포함하여 저장
+
+2. **src/App.tsx**
+   - ForEach 저장 로직에 `fieldType` 추가
+   ```typescript
+   } else if (loopData && containerType === 'forEach') {
+     updateNodeData(containerId, 'selectedNode', loopData.selectedNode || '');
+     updateNodeData(containerId, 'fieldType', loopData.fieldType || 'input');
+     updateNodeData(containerId, 'fieldName', loopData.fieldName || '');
+   }
+   ```
+
+3. **src/components/ForEachNode.tsx**
+   - 표시 형식 변경: `{selectedNode}.{fieldType}.{fieldName}`
+   ```typescript
+   {data.selectedNode || '-'}.{data.fieldType || 'input'}.{data.fieldName || '-'}
+   ```
+
+### 버그 수정 (fieldType 전달 누락):
+
+4. **src/components/ContainerFlowModal.tsx** (추가 수정)
+   - `initialFieldType` prop 추가
+   - `useState`, `useEffect`에서 `initialFieldType` 사용하도록 수정
+
+5. **src/App.tsx** (추가 수정)
+   - `containerFlowModal` 상태에 `fieldType: 'input' | 'output'` 추가
+   - `setContainerFlowModal` 호출 시 `fieldType` 전달
+   - `ContainerFlowModal`에 `initialFieldType` prop 전달
+
+---
+
+## 호환성
+
+- SwitchNode는 이미 `expression` 변수명 사용 (변경 불필요)
+- 기존 JSON 파일의 `condition` 필드는 import 시 자동으로 `expression`으로 마이그레이션됨
+- 기존 ForEach 노드는 `fieldType`이 없으면 기본값 'input' 사용

@@ -1,0 +1,118 @@
+# 2026-01-09 수정사항
+
+## 1. ContainerFlowModal 더블클릭→버튼 액션 변환 완료
+
+### 수정된 파일:
+1. **src/components/ContainerFlowModal.tsx**
+   - `MappingEditorModal` import 추가
+   - `mappingEditorModal` 상태 추가 (isOpen, nodeId, mappings)
+   - `openNodeEditor` 함수를 initialization useEffect 이전으로 이동
+   - `openNodeEditor`에 Mapping 노드 처리 로직 추가
+   - `createOnEdit` 함수 제거 및 `openNodeEditor` 직접 참조로 변경
+   - `addNode` 함수에 `onEdit` 콜백 추가
+   - `addNode` dependency array에 `openNodeEditor` 추가
+   - `handleMappingEditorSave` 콜백 추가
+   - `MappingEditorModal` JSX 컴포넌트 추가
+
+### 변경 이유:
+- 컨테이너 모달 내부에서 생성된 노드들의 Edit/Expand 버튼이 작동하지 않던 문제 해결
+- 초기 노드에 사용되던 `createOnEdit` 함수가 stale closure 문제를 가지고 있었음
+- `openNodeEditor`를 useEffect 이전에 정의하여 closure 문제 해결
+- 새로 추가되는 노드에도 `onEdit` 콜백이 주입되도록 수정
+
+### 수정된 노드 타입별 동작:
+| 노드 타입 | 버튼 | 클릭 시 동작 |
+|-----------|------|-------------|
+| IfElse | Edit | ConditionEditModal 열기 |
+| Script | Edit Script | ScriptEditModal 열기 |
+| Mapping | Edit Mapping | MappingEditorModal 열기 |
+| Error | Edit | CodeSelectionModal 열기 |
+| For/ForEach/While | Expand | 중첩 ContainerFlowModal 열기 |
+
+### 코드 변경 상세:
+
+**openNodeEditor 함수 이동:**
+```typescript
+// 변경 전: initialization useEffect 이후에 정의됨
+// 변경 후: initialization useEffect 이전에 정의됨
+
+const openNodeEditor = useCallback((nodeId: string) => {
+  const node = nodes.find(n => n.id === nodeId);
+  if (!node) return;
+
+  if (node.type === 'IfElse') { /* ... */ }
+  else if (node.type === 'Script') { /* ... */ }
+  else if (node.type === 'Error') { /* ... */ }
+  else if (node.type === 'Mapping') {  // 새로 추가
+    setMappingEditorModal({
+      isOpen: true,
+      nodeId: node.id,
+      mappings: node.data.mappings || [],
+    });
+  }
+  else if (['For', 'ForEach', 'While'].includes(node.type || '')) { /* ... */ }
+}, [nodes]);
+```
+
+**초기 노드 콜백 변경:**
+```typescript
+// 변경 전 (stale closure 문제)
+const createOnEdit = (nodeId: string) => () => { ... };
+onEdit: createOnEdit(node.id),
+
+// 변경 후 (직접 참조)
+onEdit: () => openNodeEditor(node.id),
+```
+
+**addNode 함수에 onEdit 추가:**
+```typescript
+const newNode: Node = {
+  data: {
+    // ...
+    onEdit: () => openNodeEditor(newNodeId),  // 추가됨
+  },
+};
+```
+
+---
+
+## 2. 더블클릭 이벤트 전체 삭제 및 버튼 동작 수정
+
+### 수정된 파일:
+1. **src/App.tsx**
+   - `onNodeDoubleClick` 핸들러 삭제 (line 1736-1795)
+   - ReactFlow 컴포넌트에서 `onNodeDoubleClick` prop 삭제
+
+2. **src/components/ContainerFlowModal.tsx**
+   - `onNodeDoubleClick` 핸들러 삭제 (line 886-932)
+   - ReactFlow 컴포넌트에서 `onNodeDoubleClick` prop 삭제
+   - `nodesRef` 추가 (stale closure 문제 해결)
+   - `openNodeEditor`가 `nodesRef.current`를 사용하도록 변경
+
+### 변경 이유:
+- 사용자 요청에 따라 모든 더블클릭 이벤트 삭제
+- 버튼이 작동하지 않던 문제는 `openNodeEditor`의 stale closure 문제
+- `nodesRef`를 사용하여 항상 최신 nodes 상태 참조
+
+### 코드 변경 상세:
+
+**nodesRef 추가 (stale closure 해결):**
+```typescript
+// Ref to always have access to latest nodes
+const nodesRef = useRef(nodes);
+useEffect(() => {
+  nodesRef.current = nodes;
+}, [nodes]);
+
+const openNodeEditor = useCallback((nodeId: string) => {
+  const node = nodesRef.current.find(n => n.id === nodeId);  // nodes 대신 nodesRef.current 사용
+  if (!node) return;
+  // ...
+}, []); // dependency에서 nodes 제거
+```
+
+### 삭제된 기능:
+- App.tsx: 노드 더블클릭 시 모달 열기 (Method, Mapping, IfElse, Script, Error)
+- ContainerFlowModal: 노드 더블클릭 시 모달 열기 (IfElse, Script, Error, For, ForEach, While)
+
+---

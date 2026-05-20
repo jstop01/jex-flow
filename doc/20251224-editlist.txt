@@ -1,0 +1,716 @@
+# 2025-12-24 수정사항
+
+## 1. ForEach fieldType prop 전달 버그 수정
+
+### 문제:
+- ForEach 노드의 "구분" 콤보박스(input/output)가 표시되지 않음
+- `initialFieldType` prop이 누락되어 값이 전달되지 않음
+
+### 수정된 파일:
+1. **src/components/ContainerFlowModal.tsx**
+   - `initialFieldType` prop 추가
+   - `useState`, `useEffect`에서 `initialFieldType` 사용하도록 수정
+
+2. **src/App.tsx**
+   - `containerFlowModal` 상태에 `fieldType: 'input' | 'output'` 추가
+   - `setContainerFlowModal` 호출 시 `fieldType` 전달
+   - `ContainerFlowModal`에 `initialFieldType` prop 전달
+
+---
+
+## 2. DONode IMO 선택 시 RETURN TYPE 고정
+
+### 요구사항:
+- LINKED DO에서 IMO 선택 시 RETURN TYPE을 JexData로 고정
+
+### 수정된 파일:
+1. **src/App.tsx**
+   - `handleIDOSelect`에서 IMO 선택 시 `returnType`을 자동으로 `{ name: 'JexData', id: 'JexData' }`로 설정
+
+2. **src/components/DONode.tsx**
+   - `isIMO` 변수 추가 (`data.ido?.type === 'IMO'` 체크)
+   - IMO일 때 RETURN TYPE 버튼 비활성화 (회색 배경, cursor-not-allowed)
+   - "JexData" 텍스트 고정 표시, ChevronDown 아이콘 숨김
+   - 드롭다운 열리지 않도록 처리
+
+---
+
+## 3. DONode 너비 고정
+
+### 문제:
+- DO 선택 시 텍스트가 짧으면 노드 형태가 달라지는 버그
+
+### 수정된 파일:
+1. **src/components/DONode.tsx**
+   - `min-w-[240px]` → `w-[240px]` 변경
+   - 텍스트 길이와 관계없이 항상 240px 고정 너비 유지
+
+---
+
+## 4. ContainerFlowModal 중첩 루프 노드 지원
+
+### 문제:
+- 컨테이너 내부에서 for, forEach, while 노드가 작동하지 않음
+
+### 수정된 파일:
+1. **src/components/ContainerFlowModal.tsx**
+   - `nestedContainerModal` state 추가 (FlowCanvas 내부)
+   - `onNodeDoubleClick`에 루프 노드(for, forEach, while) 처리 추가
+   - `handleNestedContainerSave` 저장 핸들러 추가
+   - FlowCanvas 내부에서 ContainerFlowModal 재귀 렌더링
+
+### 동작:
+- 컨테이너 내부에서 For/ForEach/While 노드 더블클릭 시 중첩 ContainerFlowModal 열림
+- 중첩 모달에서 내부 플로우 편집 가능
+
+---
+
+## 5. CLAUDE.md 수정 로그 자동 저장 규칙 추가
+
+### 수정된 파일:
+1. **CLAUDE.md**
+   - "수정 로그 자동 저장 (필수)" 섹션 추가
+   - 코드 수정 완료 시 자동으로 `doc/YYYYMMDD-editlist.txt`에 기록하도록 규칙 명시
+
+---
+
+## 6. End 노드 추가 생성 시 초기 형태와 동일하게 수정
+
+### 문제:
+- End 노드를 추가 생성하면 초기 End 노드와 다르게 표시됨
+- 초기: "End Node", "Final output", Service Type 없음
+- 추가 생성: "New end", "New node", Service Type 있음
+
+### 수정된 파일:
+1. **src/App.tsx**
+   - `addNode` 함수에 `isEnd` 변수 추가
+   - End 노드 생성 시 label을 'End Node'로 설정
+   - End 노드 생성 시 description을 'Final output'으로 설정
+   - End 노드 생성 시 `isEnd: true` 플래그 추가
+   - `endIdCounter` 추가 (End 노드 전용 ID 카운터)
+   - End 노드 ID 형식: `end1`, `end2`, `end3`...
+
+---
+
+## 7. ContainerFlowModal Undo/Redo 기능 추가
+
+### 문제:
+- 컨테이너 모달에서 되돌리기(Cmd/Ctrl+Z) 시 메인 캔버스에서 되돌리기가 됨
+- 컨테이너 모달 내부에서 독립적인 Undo/Redo가 필요
+
+### 수정된 파일:
+1. **src/components/ContainerFlowModal.tsx**
+   - `history`, `historyIndex` state 추가 (최대 50개 상태 저장)
+   - `isUndoRedoRef` ref 추가 (undo/redo 중 스냅샷 방지)
+   - `takeSnapshot` 함수 추가 (현재 상태 히스토리에 저장)
+   - `undo`, `redo` 함수 추가
+   - `useEffect` 키보드 이벤트 리스너 추가
+     - capture phase (`{ capture: true }`)로 App.tsx보다 먼저 이벤트 가로챔
+     - Cmd/Ctrl+Z: undo
+     - Cmd/Ctrl+Shift+Z: redo
+     - Ctrl+Y: redo (Windows)
+   - 초기 스냅샷 저장 로직 추가
+   - 노드/엣지 변경 감지 및 debounced 스냅샷 저장 (300ms)
+
+### 동작:
+- 컨테이너 모달이 열려있을 때 Cmd/Ctrl+Z 시 모달 내부에서 되돌리기
+- App.tsx의 undo가 가로채지지 않음 (capture phase 우선 처리)
+
+---
+
+## 8. 컨테이너 내 루프 노드 투명 문제 해결
+
+### 문제:
+- 컨테이너 모달에서 for, forEach, while 노드가 투명하게 보임
+- 루프 노드의 `<style>` 태그 CSS가 모달 내부에서 제대로 적용되지 않음
+
+### 수정된 파일:
+1. **src/components/ContainerFlowModal.tsx**
+   - FlowCanvas의 `<style>` 태그에 루프 노드 CSS 규칙 명시적 추가:
+   ```css
+   .container-flow-canvas .react-flow__node.react-flow__node-for,
+   .container-flow-canvas .react-flow__node.react-flow__node-forEach,
+   .container-flow-canvas .react-flow__node.react-flow__node-while {
+     border: none !important;
+     outline: none !important;
+     background: transparent !important;
+     box-shadow: none !important;
+     padding: 0 !important;
+     overflow: visible !important;
+   }
+   ```
+   - selected/focus 상태에 대한 CSS 규칙도 추가
+
+### 동작:
+- ReactFlow wrapper가 투명해져 내부 노드 콘텐츠(흰색 배경)가 정상 표시됨
+
+---
+
+## 9. 루프 노드 배경색 inline style로 수정
+
+### 문제:
+- for, forEach, while 노드의 Tailwind CSS `bg-white`, `shadow-xl` 클래스가 적용되지 않음
+- 노드 body 부분이 투명하게 표시됨
+
+### 수정된 파일:
+1. **src/components/ForNode.tsx**
+2. **src/components/ForEachNode.tsx**
+3. **src/components/WhileNode.tsx**
+
+### 변경 내용:
+- Tailwind 클래스 `bg-white shadow-xl` 제거
+- inline style로 `backgroundColor: '#ffffff'` 명시적 추가
+- inline style로 `boxShadow` 명시적 추가:
+  ```javascript
+  boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)'
+  ```
+
+---
+
+## 10. ContainerFlowModal Undo/Redo 버튼 추가
+
+### 문제:
+- ContainerFlowModal에서 Undo/Redo 기능이 키보드만 지원됨
+- 시각적인 버튼이 없어 사용자가 기능 인지 불가
+
+### 수정된 파일:
+1. **src/components/ContainerFlowModal.tsx**
+   - `forwardRef`, `useImperativeHandle` import 추가
+   - `Undo2`, `Redo2` 아이콘 import 추가
+   - `FlowCanvasHandle` interface 추가 (undo, redo, canUndo, canRedo)
+   - `FlowCanvas`를 `forwardRef`로 변환
+   - `useImperativeHandle`로 undo/redo 함수 노출
+   - `ContainerFlowModal`에 `flowCanvasRef`, `undoRedoState` 추가
+   - `handleUndo`, `handleRedo` 핸들러 추가
+   - 헤더에 Undo/Redo 버튼 UI 추가 (활성/비활성 상태 표시)
+
+### UI 변경:
+- 헤더 우측에 되돌리기/다시 실행 버튼 추가
+- 비활성 상태: 회색(text-slate-300), cursor-not-allowed
+- 활성 상태: 진한 회색(text-slate-600), hover 효과
+
+---
+
+## 11. 루프 노드 CSS !important 강제 적용
+
+### 문제:
+- inline style의 backgroundColor가 적용되지 않음
+- ReactFlow 노드의 기본 스타일이 우선 적용됨
+
+### 수정된 파일:
+1. **src/components/ForNode.tsx**
+2. **src/components/ForEachNode.tsx**
+3. **src/components/WhileNode.tsx**
+
+### 변경 내용:
+- `<style>` 태그에 내부 콘텐츠 스타일 강제 적용 CSS 추가:
+  ```css
+  .react-flow__node.react-flow__node-for > div {
+    background-color: #ffffff !important;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1) !important;
+  }
+  ```
+- `> div` 선택자로 직접 자식 div에만 적용
+
+---
+
+## 12. ContainerFlowModal 자동 연결선 제거
+
+### 문제:
+- 컨테이너 안에 컨테이너 노드 추가 후 열면 Start-End 자동 연결선이 있음
+- 새로운 빈 컨테이너에는 연결선이 없어야 함
+
+### 수정된 파일:
+1. **src/components/ContainerFlowModal.tsx**
+
+### 변경 내용:
+- `getInitialEdges` 함수에서 자식 노드가 없을 때 빈 배열 반환
+- 기존: `return [{ id: ..., source: startId, target: endId, type: 'smoothstep' }]`
+- 변경: `return []`
+
+---
+
+## 13. 루프 노드 Body 영역 투명 문제 해결
+
+### 문제:
+- 컨테이너 내부에서 For, ForEach, While 노드의 body(하단부)가 투명하게 표시됨
+- Header(상단)는 정상, Body만 투명
+
+### 원인:
+- CSS `> div` 선택자는 직접 자식만 대상
+- Body 영역은 2단계 이상 중첩되어 CSS 규칙이 적용되지 않음
+- Tailwind `bg-white` 클래스가 CSS 우선순위에서 밀림
+
+### 수정된 파일:
+1. **src/components/ForNode.tsx**
+2. **src/components/ForEachNode.tsx**
+3. **src/components/WhileNode.tsx**
+
+### 변경 내용:
+- Body Section의 `bg-white` Tailwind 클래스 제거
+- inline style에 `backgroundColor: '#ffffff'` 명시적 추가
+```jsx
+// 변경 전
+className={`flex-1 bg-white relative rounded-b-[30px] ...`}
+style={{ pointerEvents: data.isExpanded ? 'auto' : 'none' }}
+
+// 변경 후
+className={`flex-1 relative rounded-b-[30px] ...`}
+style={{ pointerEvents: data.isExpanded ? 'auto' : 'none', backgroundColor: '#ffffff' }}
+```
+
+---
+
+## 14. 루프 노드 Body 영역 전체 inline style 적용
+
+### 문제:
+- 이전 수정에도 불구하고 Body 영역이 여전히 투명하게 표시됨
+- Tailwind 클래스가 CSS 우선순위에서 계속 밀림
+
+### 수정된 파일:
+1. **src/components/ForNode.tsx**
+2. **src/components/ForEachNode.tsx**
+3. **src/components/WhileNode.tsx**
+
+### 변경 내용:
+- Body 영역에 고유 클래스 추가 (`.for-node-body`, `.foreach-node-body`, `.while-node-body`)
+- `<style>` 태그에 해당 클래스에 대한 `!important` CSS 규칙 추가
+- Body 영역에 `minHeight: '80px'` 추가
+- 모든 중첩 div에 explicit `backgroundColor: '#ffffff'` inline style 적용
+- Header 영역의 Tailwind 클래스도 모두 inline style로 교체
+- dashed border div에도 explicit inline style 적용
+
+### 변경 예시:
+```jsx
+// Body Section
+<div
+  className={`for-node-body flex-1 relative rounded-b-[30px] ...`}
+  style={{
+    pointerEvents: data.isExpanded ? 'auto' : 'none',
+    backgroundColor: '#ffffff',
+    minHeight: '80px',
+  }}
+>
+  <div style={{ backgroundColor: '#ffffff' }}>
+    <div style={{ backgroundColor: '#ffffff', border: '2px dashed #f1f5f9' }}>
+      ...
+    </div>
+  </div>
+</div>
+
+// CSS in <style> tag
+.for-node-body {
+  background-color: #ffffff !important;
+}
+```
+
+---
+
+## 15. 중첩 ContainerFlowModal ForEach 콤보박스 작동 안함 수정
+
+### 문제:
+- 컨테이너 내부에서 ForEach 노드를 만들고 중첩 모달에 들어가면
+- 상단의 노드/구분/필드 콤보박스가 작동하지 않음
+- `availableNodes`가 빈 배열로 전달되어 선택 가능한 노드가 없음
+
+### 수정된 파일:
+1. **src/components/ContainerFlowModal.tsx**
+
+### 변경 내용:
+1. `FlowCanvasProps` interface에 `availableNodes?: AvailableNodeInfo[]` 추가
+2. `FlowCanvas` 컴포넌트 함수 시그니처에 `availableNodes = []` 파라미터 추가
+3. `ContainerFlowModal` → `FlowCanvas` 렌더링 시 `availableNodes={availableNodes}` 전달
+4. `FlowCanvas` → 중첩 `ContainerFlowModal` 렌더링 시 `availableNodes={availableNodes}` 전달 (기존 `[]` → `availableNodes`)
+
+---
+
+## 16. 중첩 ForEach 모달에서 현재 컨테이너 노드도 표시
+
+### 문제:
+- 컨테이너 내부에서 ForEach 노드를 열면 메인 캔버스의 노드 정보만 표시됨
+- 현재 컨테이너 내부의 노드들이 "노드" 콤보박스에 나타나지 않음
+
+### 수정된 파일:
+1. **src/components/ContainerFlowModal.tsx**
+
+### 변경 내용:
+1. `FlowCanvas` 컴포넌트에 `combinedAvailableNodes` useMemo 추가:
+   ```typescript
+   const combinedAvailableNodes = useMemo(() => {
+     // 현재 컨테이너 내부 노드들 (start, end 제외)
+     const currentContainerNodes: AvailableNodeInfo[] = nodes
+       .filter(n => !n.id.endsWith('-start') && !n.id.endsWith('-end'))
+       .map(n => ({
+         id: n.id,
+         label: n.data?.label || n.id,
+         inputs: n.data?.inputs || [],
+         outputs: n.data?.outputs || [],
+       }));
+
+     // 상위에서 받은 availableNodes와 합침 (중복 제거)
+     const existingIds = new Set(availableNodes.map(n => n.id));
+     const newNodes = currentContainerNodes.filter(n => !existingIds.has(n.id));
+
+     return [...availableNodes, ...newNodes];
+   }, [nodes, availableNodes]);
+   ```
+2. 중첩 `ContainerFlowModal`에 `combinedAvailableNodes` 전달:
+   ```jsx
+   <ContainerFlowModal
+     ...
+     availableNodes={combinedAvailableNodes}
+   />
+   ```
+
+### 동작:
+- 중첩 ForEach 모달에서 "노드" 콤보박스에 상위 노드 + 현재 컨테이너 내부 노드 모두 표시
+- 중복 노드는 자동 제거
+
+---
+
+## 17. 중첩 ForEach 모달에서 바로 한 단계 위 노드만 표시
+
+### 문제:
+- 중첩 ForEach 모달에서 모든 상위 노드가 표시됨
+- 바로 한 단계 위(현재 컨테이너)의 노드만 필요
+
+### 수정된 파일:
+1. **src/components/ContainerFlowModal.tsx**
+
+### 변경 내용:
+1. `combinedAvailableNodes` → `currentContainerNodes`로 변경
+2. 상위 `availableNodes`와 합치는 로직 제거
+3. 현재 컨테이너 내부 노드만 반환:
+   ```typescript
+   const currentContainerNodes = useMemo(() => {
+     return nodes
+       .filter(n => !n.id.endsWith('-start') && !n.id.endsWith('-end'))
+       .map(n => ({
+         id: n.id,
+         label: n.data?.label || n.id,
+         inputs: n.data?.inputs || [],
+         outputs: n.data?.outputs || [],
+       }));
+   }, [nodes]);
+   ```
+4. 중첩 `ContainerFlowModal`에 `currentContainerNodes` 전달
+
+### 동작:
+- 중첩 ForEach 모달에서 바로 한 단계 위(현재 컨테이너) 노드만 "노드" 콤보박스에 표시
+- 상위 계층(메인 캔버스 등)의 노드는 표시되지 않음
+
+---
+
+## 18. 중첩 컨테이너 저장 시 다른 컨테이너 영향 버그 수정
+
+### 문제:
+- 컨테이너 안에 컨테이너(ForEach, For, While 등)를 만들고 그 내부에서 작업한 내용이 다른 컨테이너에 영향을 줌
+- 원인: `handleSave`에서 모든 노드의 `parentId`를 현재 컨테이너 ID로 일괄 덮어씀
+
+### 문제 시나리오:
+```
+Container A (편집 중)
+├── Node1 (parentId: undefined → A로 설정 ✓)
+├── ForEach1 (parentId: undefined → A로 설정 ✓)
+│   └── Child1 (parentId: ForEach1 → A로 덮어씀 ✗)
+└── Container B
+    └── Child2 (parentId: B → A로 덮어씀 ✗)
+```
+
+### 수정된 파일:
+1. **src/components/ContainerFlowModal.tsx**
+
+### 변경 내용:
+기존 코드:
+```typescript
+const restoredNodes = latestNodes.map(n => ({
+  ...n,
+  parentId: containerId,  // 모든 노드에 적용
+  extent: 'parent' as const,
+  zIndex: 1000,
+}));
+```
+
+수정 코드:
+```typescript
+const restoredNodes = latestNodes.map(n => {
+  const isStartOrEnd = n.id.endsWith('-start') || n.id.endsWith('-end');
+  const hasNestedParent = n.parentId && n.parentId !== containerId && !isStartOrEnd;
+
+  return {
+    ...n,
+    parentId: hasNestedParent ? n.parentId : containerId,
+    extent: 'parent' as const,
+    zIndex: 1000,
+  };
+});
+```
+
+### 동작:
+- 이미 `parentId`가 있는 노드(중첩 컨테이너의 자식)는 기존 `parentId` 유지
+- `parentId`가 없거나 start/end 노드인 경우만 현재 컨테이너 ID 적용
+- 중첩 컨테이너 구조가 저장 시에도 올바르게 유지됨
+
+---
+
+## 19. 중첩 컨테이너 자식 노드가 부모 컨테이너에 표시되는 버그 수정
+
+### 문제:
+- For 컨테이너 안에 ForEach를 추가하고, ForEach 안에 노드를 추가한 후 저장하면
+- ForEach의 자식 노드가 For 컨테이너에 튀어나와 표시됨
+
+### 원인:
+- `handleNestedContainerSave`에서 중첩 자식 노드를 부모 FlowCanvas의 `nodes` 상태에 추가
+- ReactFlow는 `nodes` 배열의 **모든 노드**를 렌더링하기 때문에 중첩 자식도 표시됨
+
+### 문제 시나리오:
+```
+For 컨테이너 FlowCanvas nodes 상태:
+├── node1-start (parentId: undefined) → 표시 ✓
+├── node1-end (parentId: undefined) → 표시 ✓
+├── node2 (ForEach, parentId: undefined) → 표시 ✓
+└── node3 (New Process, parentId: 'node2') → 표시됨 ✗ (숨겨야 함)
+```
+
+### 수정된 파일:
+1. **src/components/ContainerFlowModal.tsx**
+
+### 변경 내용:
+1. `visibleNodes` useMemo 추가 - 현재 컨테이너에 직접 속하는 노드만 필터링:
+   ```typescript
+   const visibleNodes = useMemo(() => {
+     return nodes.filter(n => !n.parentId);
+   }, [nodes]);
+   ```
+
+2. `visibleEdges` useMemo 추가 - 표시되는 노드 간의 연결만 필터링:
+   ```typescript
+   const visibleEdges = useMemo(() => {
+     const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
+     return edges.filter(e => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target));
+   }, [edges, visibleNodes]);
+   ```
+
+3. ReactFlow에 필터링된 노드/엣지 전달:
+   ```jsx
+   <ReactFlow
+     nodes={visibleNodes}  // 기존: nodes
+     edges={visibleEdges}  // 기존: edges
+     ...
+   />
+   ```
+
+### 동작:
+- `parentId`가 없는 노드만 현재 컨테이너에 표시
+- 중첩 컨테이너의 자식 노드(`parentId`가 설정된 노드)는 부모 컨테이너에서 숨겨짐
+- 내부적으로 `nodes` 상태는 모든 노드를 유지하여 저장 시 올바르게 처리
+
+---
+
+## 20. 중첩 컨테이너 엣지(연결선) 저장 안됨 버그 수정
+
+### 문제:
+- 컨테이너 내부에 컨테이너를 추가하고 노드를 연결한 후 저장
+- 다시 컨테이너를 열면 노드 연결선이 끊어져 있음
+
+### 원인:
+- `handleNestedContainerSave`에서 노드만 저장하고 엣지는 저장하지 않음
+- `nestedEdges` 파라미터를 받지만 사용하지 않음
+
+### 수정된 파일:
+1. **src/components/ContainerFlowModal.tsx**
+
+### 변경 내용:
+`handleNestedContainerSave`에 엣지 저장 로직 추가:
+```typescript
+// 내부 엣지 저장
+const childNodeIds = new Set(childNodes.map(n => n.id));
+const startId = `${containerId}-start`;
+const endId = `${containerId}-end`;
+
+// 중첩 컨테이너 내부 엣지 (start/end 연결 포함)
+const childEdges = nestedEdges.filter(e => {
+  const sourceIsChild = childNodeIds.has(e.source) || e.source === startId || e.source === endId;
+  const targetIsChild = childNodeIds.has(e.target) || e.target === startId || e.target === endId;
+  return sourceIsChild && targetIsChild;
+});
+
+// 기존 중첩 컨테이너 엣지 제거 후 새 엣지 추가
+setEdges(eds => {
+  const otherEdges = eds.filter(e => {
+    const sourceIsNested = childNodeIds.has(e.source) || e.source === startId || e.source === endId;
+    const targetIsNested = childNodeIds.has(e.target) || e.target === startId || e.target === endId;
+    return !(sourceIsNested || targetIsNested);
+  });
+  return [...otherEdges, ...childEdges];
+});
+```
+
+### 동작:
+- 중첩 컨테이너 저장 시 내부 노드와 엣지 모두 부모 FlowCanvas 상태에 저장
+- 다시 열 때 `getInitialEdges`에서 저장된 엣지를 불러옴
+
+---
+
+## 21. 중첩 컨테이너 재오픈 시 노드/엣지 로드 안됨 버그 수정
+
+### 문제:
+- 컨테이너 내부에 컨테이너를 만들고 저장 후 다시 열면 내부 노드와 엣지가 없음
+- 예: For → ForEach → 노드 추가 → 저장 → 재오픈 시 ForEach 내부 비어있음
+
+### 원인:
+- `getInitialNodes`가 **직접 자식만** 로드하고 **중첩 자식(손자 노드)**은 로드하지 않음
+- For 컨테이너 로드 시 ForEach의 자식들(`parentId: 'ForEach'`)이 누락됨
+- ForEach 재오픈 시 `nodes`에 자식이 없어서 빈 컨테이너로 표시
+
+### 문제 흐름:
+```
+For 컨테이너 열기
+└─ getInitialNodes('For', initialNodes)
+└─ 로드됨: ForEach (parentId: 'For')
+└─ 로드 안됨: NewProcess (parentId: 'ForEach') ❌
+
+For 안에서 ForEach 열기
+└─ getInitialNodes('ForEach', nodes)
+└─ nodes에 NewProcess 없음 → 빈 컨테이너! ❌
+```
+
+### 수정된 파일:
+1. **src/components/ContainerFlowModal.tsx**
+
+### 변경 내용:
+
+1. `getAllDescendantNodes` 헬퍼 함수 추가:
+```typescript
+const getAllDescendantNodes = (containerId: string, allNodes: Node[]): Node[] => {
+  const descendants: Node[] = [];
+  const visited = new Set<string>();
+  const queue = [containerId];
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    if (visited.has(currentId)) continue;
+    visited.add(currentId);
+
+    const children = allNodes.filter(n => n.parentId === currentId);
+    descendants.push(...children);
+
+    // 컨테이너 타입 자식은 큐에 추가하여 재귀 탐색
+    children.forEach(child => {
+      if (['for', 'forEach', 'while', 'group'].includes(child.type || '')) {
+        queue.push(child.id);
+      }
+    });
+  }
+  return descendants;
+};
+```
+
+2. `getInitialNodes` 수정 - 중첩 후손 포함:
+```typescript
+const allDescendants = getAllDescendantNodes(containerId, initialNodes);
+const nestedDescendants = allDescendants.filter(n => n.parentId !== containerId);
+return [startNode, endNode, ...processedNodes, ...nestedDescendants];
+```
+
+3. `getInitialEdges` 수정 - 중첩 엣지 포함:
+```typescript
+const allDescendants = getAllDescendantNodes(containerId, initialNodes);
+// 직접 자식 엣지 + 중첩 컨테이너 내부 엣지 모두 포함
+return initialEdges.filter(e => {
+  return (sourceIsDirect && targetIsDirect) || (sourceIsDescendant && targetIsDescendant);
+});
+```
+
+### 동작:
+- 컨테이너 초기화 시 모든 후손 노드와 엣지를 로드
+- 직접 자식: `parentId` 제거하여 현재 컨테이너에 표시
+- 중첩 자식: `parentId` 유지하여 `visibleNodes`에서 숨김
+- 중첩 컨테이너 재오픈 시 저장된 노드/엣지 정상 로드
+
+---
+
+## 22. App.tsx handleContainerFlowSave 중첩 엣지 저장 버그 수정
+
+### 문제:
+- 컨테이너 내부에 컨테이너를 만들고 노드를 연결한 후 저장
+- 다시 컨테이너를 열면 중첩 컨테이너 내부의 노드 연결선이 끊어져 있음
+- 예: For → ForEach → 노드 추가 및 연결 → 저장 → 재오픈 시 ForEach 내부 엣지 없음
+
+### 원인:
+1. **노드 중복 버그**: `nonInternalNodes` 필터가 `parentId !== containerId`를 확인
+   - 손자 노드(`parentId = nestedContainerId`)가 남아있고
+   - `newInternalNodes`에도 포함되어 중복 발생
+
+2. **엣지 누락 버그**: `isOldInternal` 체크가 직접 자식만 확인
+   - 중첩 컨테이너의 가상 start/end 노드(예: `forEachId-start`)는 `nodes` 배열에 없음
+   - 손자 노드의 엣지가 "old internal"로 인식되지 않아 중복 또는 불일치 발생
+
+### 수정된 파일:
+1. **src/App.tsx**
+
+### 변경 내용:
+
+```typescript
+// 기존 코드
+setNodes((nds) => {
+  const nonInternalNodes = nds.filter(n => n.parentId !== containerId);
+  return [...nonInternalNodes, ...processedInternalNodes];
+});
+
+setEdges((eds) => {
+  const nonInternalEdges = eds.filter(e => {
+    const isOldInternal = nodes.some(n => n.parentId === containerId && (n.id === e.source || n.id === e.target));
+    return !isOldInternal;
+  });
+  return [...nonInternalEdges, ...newInternalEdges];
+});
+
+// 수정 코드
+// 새로운 내부 노드 ID 집합 (직접 자식 + 중첩 손자 모두 포함)
+const newInternalNodeIds = new Set(newInternalNodes.map(n => n.id));
+
+// 중첩 컨테이너들의 start/end 노드 ID도 추가
+const allInternalNodeIds = new Set(newInternalNodeIds);
+allInternalNodeIds.add(`${containerId}-start`);
+allInternalNodeIds.add(`${containerId}-end`);
+newInternalNodes.forEach(n => {
+  if (['for', 'forEach', 'while', 'group'].includes(n.type || '')) {
+    allInternalNodeIds.add(`${n.id}-start`);
+    allInternalNodeIds.add(`${n.id}-end`);
+  }
+});
+
+setNodes((nds) => {
+  // ID 기반 필터링으로 중복 방지
+  const nonInternalNodes = nds.filter(n => !newInternalNodeIds.has(n.id));
+  return [...nonInternalNodes, ...processedInternalNodes];
+});
+
+setEdges((eds) => {
+  // 모든 내부 노드(직접 자식 + 중첩 start/end + 손자) 관련 엣지 제거
+  const nonInternalEdges = eds.filter(e => {
+    const sourceIsInternal = allInternalNodeIds.has(e.source);
+    const targetIsInternal = allInternalNodeIds.has(e.target);
+    return !sourceIsInternal && !targetIsInternal;
+  });
+  return [...nonInternalEdges, ...newInternalEdges];
+});
+```
+
+### 동작:
+- `newInternalNodeIds`: 모달에서 받은 모든 내부 노드 ID (직접 자식 + 손자)
+- `allInternalNodeIds`: 노드 ID + 컨테이너 start/end 가상 노드 ID
+- 노드: ID 기반 필터링으로 기존 노드 제거 후 새 노드 추가 (중복 방지)
+- 엣지: 내부 노드와 관련된 모든 엣지 제거 후 새 엣지 추가
+- 중첩 컨테이너의 가상 start/end 노드 엣지도 정확히 처리됨
+
+### 추가 수정:
+- 의존성 배열에서 `nodes` 제거 (더 이상 사용하지 않음)
+```typescript
+// 기존
+}, [containerFlowModal.containerId, containerFlowModal.containerType, nodes, setNodes, setEdges, updateNodeData]);
+
+// 수정
+}, [containerFlowModal.containerId, containerFlowModal.containerType, setNodes, setEdges, updateNodeData]);
+```

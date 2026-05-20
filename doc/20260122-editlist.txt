@@ -1,0 +1,149 @@
+# 2026-01-22 수정사항
+
+## 1. While, For, ForEach, Method 노드 라벨 소문자로 변경
+
+### 수정된 파일:
+1. **src/components/PaneContextMenu.tsx**
+   - While -> while
+   - For -> for
+   - ForEach -> foreach
+   - Method -> method
+
+2. **src/components/ContainerFlowModal.tsx**
+   - While -> while
+   - For -> for
+   - ForEach -> foreach
+   - Method -> method
+
+### 비고:
+- type은 PascalCase 유지 (내부 식별자)
+- label만 소문자로 변경 (UI 표시용)
+
+---
+
+## 2. 매핑 에디터 - Record 접기 시 다른 필드 연결선 사라짐 버그 수정
+
+### 문제:
+- Record를 접으면 Record와 관련 없는 다른 필드의 매핑 연결선도 사라지는 문제
+
+### 원인:
+- ref 키 생성 시 배열 인덱스(idx)를 사용: `${fieldName}-${idx}`
+- Record를 접으면 배열이 재구성되어 같은 필드라도 idx가 변경됨
+  - 예: [userInfo(0), userInfo.email(1), userId(2)] → 접으면 [userInfo(0), userId(1)]
+  - userId의 idx가 2에서 1로 변경
+- refs Map에 이전 idx의 ref가 남아있어 잘못된 DOM 요소 참조
+
+### 해결:
+- `toggleSourceRecord()`, `toggleTargetRecord()` 함수에서 refs Map을 clear하도록 수정
+- DOM이 다시 렌더링될 때 새로운 ref가 올바른 인덱스로 설정됨
+
+### 수정된 파일:
+1. **src/components/MappingEditorModal.tsx**
+   - `toggleSourceRecord()`: `sourceFieldRefs.current.clear()` 추가
+   - `toggleTargetRecord()`: `targetFieldRefs.current.clear()` 추가
+   - forceUpdate 호출을 50ms, 150ms 두 번으로 변경 (refs 재설정 대기)
+
+---
+
+## 3. 매핑 데이터 구조 개선 - 다중 소스 매핑 지원
+
+### 변경 내용:
+1. **fieldIndex 필드 제거**
+   - SourceField 인터페이스에서 fieldIndex 제거
+   - 드래그&드롭 관련 코드에서 fieldIndex 관련 코드 제거
+
+2. **같은 타겟에 여러 소스 매핑 가능**
+   - 기존: 항상 새 매핑 생성 (1:1)
+   - 변경: 같은 타겟에 이미 매핑이 있으면 sources 배열에 추가
+
+3. **소스 우선순위 지원**
+   - sources 배열의 순서 = 우선순위 (인덱스 0이 가장 높은 우선순위)
+   - 소스 순서 변경 함수 추가: `moveSourceUp()`, `moveSourceDown()`
+   - 개별 소스 삭제 함수 추가: `removeSourceFromMapping()`
+
+### 변경된 JSON 구조:
+```json
+{
+  "id": "mapping-id",
+  "sources": [
+    { "nodeId": "node1", "fieldName": "A" },  // 우선순위 1
+    { "nodeId": "node1", "fieldName": "B" }   // 우선순위 2
+  ],
+  "targetNodeId": "test",
+  "targetFieldName": "TARGET"
+}
+```
+
+### UI 변경:
+- 단일 소스: 기존과 동일하게 표시
+- 다중 소스: 각 소스를 별도 행으로 표시
+  - 우선순위 번호 표시 (1, 2, 3...)
+  - 순서 변경 버튼 (위/아래 화살표)
+  - 개별 소스 삭제 버튼 (X)
+
+### 수정된 파일:
+1. **src/components/MappingEditorModal.tsx**
+   - SourceField 인터페이스에서 `fieldIndex` 제거
+   - 마이그레이션 코드에서 `fieldIndex` 제거
+   - `handleDragStart()`: fieldIndex 파라미터 제거
+   - `handleDrop()`: 같은 타겟에 기존 매핑이 있으면 sources 배열에 추가
+   - `removeSourceFromMapping()`: 개별 소스 삭제 함수 추가
+   - `moveSourceUp()`, `moveSourceDown()`: 소스 순서 변경 함수 추가
+   - 매핑 목록 UI: 다중 소스 표시 및 순서 관리 UI 추가
+
+---
+
+## 4. MappingListPanel 컴포넌트 분리 (재사용 가능한 팝업)
+
+### 목적:
+- 매핑 에디터 하단의 "매핑 목록" 영역을 별도 컴포넌트로 분리
+- 다른 곳에서 팝업 형태로 호출하여 재사용 가능
+
+### 생성된 파일:
+1. **src/components/MappingListPanel.tsx**
+
+### 제공되는 컴포넌트:
+
+#### 1. `MappingListPanel`
+- 인라인으로 매핑 목록을 표시하는 패널 컴포넌트
+- 기존 MappingEditorModal 하단에서 사용하는 것과 동일한 UI
+
+#### 2. `MappingListPopup`
+- 팝업 모달 형태로 매핑 목록을 표시
+- 다른 곳에서 독립적으로 호출 가능
+
+### 사용 예시:
+```tsx
+import { MappingListPanel, MappingListPopup } from './components/MappingListPanel';
+
+// 인라인 패널로 사용
+<MappingListPanel
+  mappings={mappings}
+  targetFieldName="ACCT_TP"
+  targetNodeId="test"
+  availableNodes={availableNodes}
+  onMappingsChange={setMappings}
+/>
+
+// 팝업으로 사용
+<MappingListPopup
+  isOpen={isPopupOpen}
+  onClose={() => setIsPopupOpen(false)}
+  mappings={mappings}
+  targetFieldName="ACCT_TP"
+  targetNodeId="test"
+  availableNodes={availableNodes}
+  onMappingsChange={setMappings}
+/>
+```
+
+### Props:
+- `mappings`: 전체 매핑 배열
+- `targetFieldName`: 표시할 타겟 필드명
+- `targetNodeId`: 타겟 노드 ID
+- `availableNodes`: 사용 가능한 노드 정보 배열
+- `onMappingsChange`: 매핑 변경 콜백 (없으면 읽기 전용)
+- `onOpenTransformModal`: Transform 모달 열기 콜백
+- `selectedMappingId`: 선택된 매핑 ID
+- `onSelectMapping`: 매핑 선택 콜백
+- `title`: 커스텀 제목 (선택적)

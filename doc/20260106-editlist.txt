@@ -1,0 +1,107 @@
+# 2026-01-06 수정사항
+
+## 1. ScriptEditModal.tsx nodes undefined 에러 수정
+
+### 수정된 파일:
+1. **src/components/ScriptEditModal.tsx**
+   - `getSourceTypeOptions()` 함수에 `if (!nodes) return options;` 가드 추가
+   - `getFieldOptions()` 함수에 `if (!nodes)` 가드 추가
+   - `handleRegisterVariable()` 함수에 `nodes?.find()` 옵셔널 체이닝 적용
+   - 렌더링 부분의 `nodes.find()` → `nodes?.find()` 변경
+
+### 변경 내용 요약:
+- ContainerFlowModal 내부에서 ScriptEditModal 렌더링 시 `nodes`가 undefined인 경우 발생하는 에러 수정
+- 앱 전체가 흰 화면으로 표시되는 문제 해결
+
+---
+
+## 2. 노드 라벨 변경
+
+### 수정된 파일:
+1. **src/App.tsx**
+   - 초기 노드: `Start Node` → `Start`
+   - 초기 노드: `End Node` → `End`
+   - `addNode` 함수: `New Process` → `Process`
+   - `addNode` 함수: `End Node` → `End`
+   - `addNode` 함수: `New ${type}` → 첫 글자 대문자화 (예: `Condition`)
+   - 모든 노드의 `description` 기본값을 빈 문자열로 변경 (기존: `New node`)
+
+### 변경 내용 요약:
+- 노드 라벨 간소화
+- 불필요한 "New" 접두어 제거
+- description 영역 정리
+
+---
+
+## 3. ProcessNode 서비스 타입 API 연동 및 설정 버튼 추가
+
+### 수정된 파일:
+1. **src/components/ProcessNode.tsx**
+   - `ServiceTypeOption` 인터페이스 추가 (`code`, `name` 필드)
+   - `apiServiceTypes` 상태 추가 - API에서 가져온 서비스 타입 목록 저장
+   - `isLoadingTypes` 상태 추가 - 로딩 상태 표시
+   - `useEffect`로 서비스 타입 목록 API 호출 (`/service/getType`)
+     - TODO: 실제 API 연동 시 주석 해제 필요 (현재 목 데이터 사용)
+   - 콤보박스 옆에 **서비스 설정 버튼** (Settings 아이콘) 추가
+     - 서비스 타입 선택 후 설정 모달 열기 가능
+     - 서비스 타입 미선택 시 비활성화
+   - 로딩 중 콤보박스에 "로딩중..." 표시
+
+### API 응답 형식 (예상):
+```json
+{
+  "types": [
+    { "code": "com.process.ProcessDefault", "name": "기본 프로세스" },
+    { "code": "com.process.ProcessHTTP", "name": "HTTP 서비스" }
+  ]
+}
+```
+
+### 변경 내용 요약:
+- 서비스 타입을 하드코딩에서 API 호출로 변경 (확장성 개선)
+- 서비스 설정을 재편집할 수 있는 설정 버튼 추가
+
+---
+
+## 4. Variable 노드 크기 축소 및 라벨 변경
+
+### 수정된 파일:
+1. **src/components/VariableNode.tsx**
+   - 노드 크기 축소: `min-w-[200px]` → `min-w-[120px]`
+   - 패딩 축소: `p-4` → `p-3`, `px-4 py-3` → `px-3 py-2`
+   - 아이콘 크기 축소: `size={16}` → `size={14}`
+   - 폰트 크기 축소: `text-sm` → `text-xs`
+   - 라벨 변경: `Variable Name` → `Name`
+   - description 영역 제거 (간소화)
+   - 도움말 텍스트 제거 (간소화)
+
+### 변경 내용 요약:
+- Variable 노드 크기 약 40% 축소
+- UI 간소화로 캔버스 공간 효율성 향상
+
+---
+
+## 5. While 노드 헤더 간소화
+
+### 수정된 파일:
+1. **src/components/WhileNode.tsx**
+   - 헤더에서 조건(Condition) 입력 필드 제거
+   - 헤더를 아이콘 + "While Loop" 라벨만 표시하도록 단순화
+
+### 변경 내용 요약:
+- While 노드 헤더 UI 간소화
+- 조건 설정은 별도 모달에서 처리하도록 변경
+
+---
+
+## 6. While 노드 리사이즈 기능 제거
+
+### 수정된 파일:
+1. **src/components/WhileNode.tsx**
+   - `NodeResizer` import 제거
+   - `NodeResizer` 컴포넌트 및 관련 CSS 스타일 제거
+   - 노드 크기를 고정 크기로 변경
+
+### 변경 내용 요약:
+- 사용자가 드래그로 노드 크기를 조절하는 기능 제거
+- 일관된 노드 크기 유지

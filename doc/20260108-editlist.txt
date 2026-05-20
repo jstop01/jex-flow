@@ -1,0 +1,805 @@
+# 2026-01-08 수정사항
+
+## 1. 노드 검색 콤보박스 - 상위 연결 노드만 표시
+
+### 수정된 파일:
+1. **src/components/ScriptEditModal.tsx**
+   - `edges` prop 추가 (연결 정보 전달용)
+   - `getUpstreamNodeIds()` 함수 추가 - 현재 노드의 상위(조상) 노드 ID들을 찾음
+   - `getSourceTypeOptions()` 함수 수정 - 연결된 상위 노드만 표시
+   - 연결되지 않은 노드는 빈 목록 반환
+
+2. **src/components/MappingEditorModal.tsx**
+   - `edges` prop 추가
+   - `upstreamFilteredNodes` useMemo 추가 - 상위 연결 노드만 필터링
+   - `nodesWithOutputs`, `nodesWithInputs`가 필터링된 노드 사용
+
+3. **src/App.tsx**
+   - `MappingEditorModal`에 `edges={edges}` prop 전달
+   - `ScriptEditModal`에 `edges={edges}` prop 전달
+
+4. **src/components/ContainerFlowModal.tsx**
+   - 내부 `ScriptEditModal`에 `nodes`, `edges` prop 전달
+
+### 변경 내용 요약:
+- 노드 내부의 변수/필드 선택 콤보박스에서 연결되지 않은 노드는 표시되지 않음
+- 노드가 다른 노드와 연결되어 있을 때만 상위(upstream) 노드들이 검색됨
+- BFS 알고리즘으로 현재 노드에서 들어오는 모든 연결을 추적하여 조상 노드 탐색
+
+### 동작 방식:
+```
+예시: A → B → C (현재 노드)
+
+C에서 검색 시:
+- B가 표시됨 (직접 연결)
+- A가 표시됨 (B를 통해 간접 연결)
+
+D라는 연결되지 않은 노드는 표시되지 않음
+```
+
+---
+
+## 2. MappingEditorModal 전체화면 모드
+
+### 수정된 파일:
+1. **src/components/MappingEditorModal.tsx**
+   - 모달 크기를 `1200px x 800px`에서 `100vw x 100vh`로 변경
+   - `maxWidth`, `maxHeight` 제한 제거
+   - `borderRadius`를 `0`으로 변경
+   - `boxShadow` 제거
+
+### 변경 내용:
+- Mapping 설정 모달이 브라우저 전체 화면을 꽉 채움
+- 더 넓은 작업 공간 제공
+
+---
+
+## 3. Edge Snapping 유효성 검증 강화
+
+### 문제점:
+- 노드를 연결선(Edge) 위에 드롭하면 자동으로 연결이 분할되는 기능(Edge Snapping)이 있음
+- 하지만 `isValidConnection`의 연결 규칙을 따르지 않아 일관성이 없었음
+- 안 되어야 하는 연결이 생기거나, 되어야 하는 연결이 안 되는 문제 발생
+
+### 수정된 파일:
+1. **src/App.tsx** (라인 548-787)
+   - Edge snapping 제외 노드 타입 추가:
+     - `variable` 노드 (연결 불가 노드)
+     - `isStart` / `isEnd` 노드 (특수 노드)
+   - Container 경계 검증 추가:
+     - 드래그한 노드와 edge의 source/target이 같은 컨테이너에 있어야 함
+     - `parentId` 비교로 검증
+   - 중복 연결 검증 추가:
+     - source 핸들당 1개 연결만 허용 (기존 edge 제외하고 검사)
+     - target 핸들당 1개 연결만 허용 (End 노드는 다중 허용)
+
+2. **src/components/ContainerFlowModal.tsx** (라인 724-834)
+   - Edge snapping 제외 노드 타입 추가:
+     - `variable` 노드
+     - `isStart` / `isEnd` 노드
+   - 중복 연결 검증 추가 (App.tsx와 동일)
+
+### 수정 후 동작:
+| 노드 타입 | Edge Snapping |
+|----------|---------------|
+| Variable | X (제외) |
+| Start/End | X (제외) |
+| 일반 노드 | O (검증 후 허용) |
+
+### 검증 규칙:
+1. 같은 컨테이너(parentId) 내에서만 edge snapping 가능
+2. source 핸들에 이미 다른 연결이 있으면 edge snapping 불가
+3. target 핸들에 이미 연결이 있으면 edge snapping 불가 (End 노드 제외)
+
+---
+
+## 4. Variable 노드 저장 버튼 추가
+
+### 요구사항:
+- Variable 노드에 저장 버튼 추가
+- 저장하기 전에는 전역으로 사용 불가
+- 저장 후에만 다른 노드에서 변수 참조 가능
+
+### 수정된 파일:
+1. **src/components/VariableNode.tsx**
+   - 로컬 상태 (`localName`) 추가 - 저장 전 입력값 관리
+   - `isSaved` 상태 추가 - 저장 여부 추적
+   - 저장 버튼 추가 - 클릭 시 `variableName`과 `isSaved` 저장
+   - Enter 키로도 저장 가능
+   - 저장 상태 시각적 표시:
+     - 헤더에 "저장됨" 표시 (체크 아이콘)
+     - 버튼 상태 변경 (저장 필요/저장됨)
+     - 미저장 시 경고 메시지 표시
+
+2. **src/components/ScriptEditModal.tsx** (라인 257-265)
+   - `getSourceTypeOptions()` 함수 수정
+   - Variable 노드 필터링 시 `node.data?.isSaved` 조건 추가
+   - 저장되지 않은 Variable 노드는 목록에 표시되지 않음
+
+### 동작 방식:
+```
+1. Variable 노드 생성
+2. 변수명 입력 (로컬 상태에만 저장)
+3. "저장" 버튼 클릭 또는 Enter 키
+4. isSaved=true로 설정됨
+5. 다른 노드(Script 등)에서 변수 참조 가능
+```
+
+### UI 상태:
+| 상태 | 버튼 | 경고 메시지 | 전역 사용 |
+|------|------|-------------|-----------|
+| 입력 전 | 비활성화 | 없음 | X |
+| 입력 후 (미저장) | "저장" (활성화) | 표시됨 | X |
+| 저장됨 | "저장됨" (비활성화) | 없음 | O |
+| 수정됨 (재저장 필요) | "저장" (활성화) | 표시됨 | X |
+
+---
+
+## 5. Script 노드 필드 선택에 "전체 항목" 옵션 추가
+
+### 요구사항:
+- 필드 선택 드롭다운에 "전체 항목" 옵션 추가
+- 전체 항목 선택 시 해당 노드의 모든 Input/Output을 변수에 담음
+
+### 수정된 파일:
+1. **src/components/ScriptEditModal.tsx**
+   - `getFieldOptions()` 함수 수정
+     - 필드 목록 맨 앞에 "전체 항목" 옵션 추가
+     - `englishName: '__ALL__'`, `fieldType: 'Object'`
+   - 드롭다운 UI 수정 (라인 683-719)
+     - 선택된 필드가 `__ALL__`이면 "전체 항목"으로 표시
+     - 드롭다운 목록에서 "전체 항목"은 보라색으로 강조, 구분선 추가
+   - 등록된 변수 목록 수정 (라인 776-786)
+     - `sourceField`가 `__ALL__`이면 "전체 항목"으로 표시
+
+### 동작 방식:
+```
+1. Source Type 선택 (예: node1 - Input)
+2. Field 선택 드롭다운 열기
+3. "전체 항목" 선택 (Object 타입으로 등록됨)
+4. 변수명 입력 후 등록
+5. 스크립트에서 해당 변수로 전체 Input/Output 접근 가능
+```
+
+---
+
+## 6. IDO/IMO 노드에 Record(REC) 타입 테스트 데이터 추가
+
+### 요구사항:
+- IDO, IMO 노드에 Record 타입 데이터 추가
+- Record는 Java의 Map과 비슷한 중첩 구조
+
+### 수정된 파일:
+1. **src/components/IOSettingModal.tsx** (라인 4-24)
+   - `IOField` 인터페이스에 `children?: IOField[]` 필드 추가
+   - Record 타입의 중첩 데이터 지원
+
+2. **src/App.tsx** (라인 98-590)
+   - `TEST_INPUTS`에 Record 타입 추가:
+     - `USER_INFO_REC` (사용자정보레코드): USER_NM, USER_AGE, USER_ADDR
+     - `REQ_PARAM_REC` (요청파라미터레코드): PAGE_NO, PAGE_SIZE, SORT_KEY
+   - `TEST_OUTPUTS`에 Record 타입 추가:
+     - `REC1` (결과레코드): RSLT_CD, RSLT_MSG, PROC_DT, PROC_TM
+     - `ACCT_INFO_REC` (계좌정보레코드): ACCT_NO, ACCT_NM, BAL_AMT, ACCT_STAT_CD
+
+### 데이터 구조:
+```typescript
+// Record 타입 예시 (Java Map과 유사)
+{
+  englishName: 'USER_INFO_REC',
+  fieldType: 'Record',
+  children: [
+    { englishName: 'USER_NM', fieldType: 'String' },
+    { englishName: 'USER_AGE', fieldType: 'Number' },
+    { englishName: 'USER_ADDR', fieldType: 'String' }
+  ]
+}
+```
+
+### 사용 방법:
+1. IDO 또는 IMO 노드 생성
+2. 노드 더블클릭 → Component Search 모달에서 컴포넌트 선택
+3. 선택된 컴포넌트에 자동으로 Record 타입 포함된 Input/Output 데이터 설정됨
+
+---
+
+## 7. IOPanel에서 Record 타입 펼치기/접기 기능 추가
+
+### 요구사항:
+- Record 타입 데이터의 children을 볼 수 있어야 함
+
+### 수정된 파일:
+1. **src/components/IOPanel.tsx** (라인 67-178)
+   - `IOTable` 컴포넌트에 Record 펼치기/접기 기능 추가
+   - `expandedRecords` 상태로 펼쳐진 Record 추적
+   - Record 행 클릭 시 children 표시/숨김 토글
+   - Record 타입은 보라색으로 강조 표시
+   - children은 들여쓰기로 계층 구조 표시
+   - Len 컬럼에 children 개수 표시 `(3)`
+   - Info 컬럼에 `MAP` 배지 추가
+
+### UI 표시:
+```
+▶ USER_INFO_REC    사용자정보레코드   Record   (3)   [MAP]
+  ├─ USER_NM       사용자명          String   50
+  ├─ USER_AGE      나이              Number   3
+  └─ USER_ADDR     주소              String   200
+```
+
+### 사용 방법:
+1. IDO/IMO 노드 선택
+2. 오른쪽 IOPanel에서 INPUT/OUTPUT 테이블 확인
+3. Record 타입 행 클릭 → children 펼치기/접기
+
+---
+
+## 8. Script 노드에서 Record children 선택 기능 추가
+
+### 요구사항:
+- Script 노드의 변수 등록 시 Record의 children도 선택 가능해야 함
+
+### 수정된 파일:
+1. **src/components/ScriptEditModal.tsx**
+   - `getFieldOptions()` 함수 수정 (라인 290-347)
+     - `flattenFields()` 헬퍼 함수 추가
+     - Record 타입의 children을 재귀적으로 평탄화
+     - children 필드명은 `RECORD_NAME.CHILD_NAME` 형식으로 표시
+   - 드롭다운 UI 수정 (라인 717-770)
+     - Record children 들여쓰기 표시
+     - `└` 기호로 하위 필드 표시
+     - Record 타입은 보라색 배경으로 강조
+
+### 드롭다운 표시:
+```
+전체 항목                         Object
+USR_ID                           String
+  └ (일반 필드)
+USER_INFO_REC                    Record  (보라색 배경)
+  └ USER_NM                      String
+  └ USER_AGE                     Number
+  └ USER_ADDR                    String
+```
+
+### 선택된 필드명 형식:
+- 일반 필드: `USR_ID`
+- Record 자체: `USER_INFO_REC`
+- Record children: `USER_INFO_REC.USER_NM`
+
+---
+
+## 9. MappingEditorModal Record(REC) 타입 지원 추가
+
+### 요구사항:
+- 매핑 에디터에서도 Record 타입의 children을 볼 수 있어야 함
+- ScriptEditModal과 동일하게 Record 필드 처리
+
+### 수정된 파일:
+1. **src/components/MappingEditorModal.tsx**
+   - `FieldInfo` 인터페이스 추가 (name, fieldType, children 포함)
+   - `AvailableNodeInfo` 인터페이스의 inputs/outputs 타입을 `FieldInfo[]`로 변경
+   - `flattenFields` 함수 추가: Record 타입의 children을 펼쳐서 flat한 배열로 변환
+   - `flattenedSourceOutputs`, `flattenedTargetInputs` useMemo 추가
+   - Source OUTPUT 렌더링 수정:
+     - Record 타입 필드에 보라색 테두리 및 REC 배지 표시
+     - children 필드는 들여쓰기(└ 표시)로 계층 구조 표현
+     - fieldType 표시 추가
+   - Target INPUT 렌더링 수정:
+     - 동일하게 Record 타입 및 children 표시 지원
+     - 오른쪽 정렬로 계층 구조 표현(┘ 표시)
+
+2. **src/App.tsx**
+   - MappingEditorModal에 전달하는 `availableNodes` 수정
+   - `convertField` 함수 추가: IOField를 FieldInfo 형식으로 재귀 변환
+   - Record 타입의 children을 재귀적으로 변환하여 전달
+
+### UI 표시:
+```
+SOURCE OUTPUT (왼쪽)                    TARGET INPUT (오른쪽)
+┌─────────────────────────┐           ┌─────────────────────────┐
+│ USER_INFO_REC    [REC]  ●│           │●    [REC] USER_INFO_REC │
+│  └ USER_NM    (String)  ●│           │●    (String) USER_NM └  │
+│  └ USER_AGE   (Number)  ●│           │●    (Number) USER_AGE └ │
+│  └ USER_ADDR  (String)  ●│           │●    (String) USER_ADDR └│
+│ USR_ID        (String)  ●│           │●    (String) USR_ID     │
+└─────────────────────────┘           └─────────────────────────┘
+```
+
+### 스타일:
+- Record 타입: 보라색 테두리, 보라색 배경, REC 배지
+- Children: 회색 배경, 들여쓰기, 작은 폰트
+- fieldType: 괄호 안에 표시 (예: `(String)`)
+
+---
+
+## 10. 테스트 데이터 fieldType을 Field로 변경
+
+### 수정된 파일:
+1. **src/App.tsx**
+   - TEST_INPUTS, TEST_OUTPUTS의 fieldType 변경
+   - `String`, `Number` → `Field`로 통일
+   - Record 타입만 `Record` 유지
+
+---
+
+## 11. MappingEditorModal 노드 검색 표시 형식 변경
+
+### 수정된 파일:
+1. **src/components/MappingEditorModal.tsx**
+   - 선택된 노드 표시: `label (id)` → `id(type)`
+   - 드롭다운 아이템: `label` → `id(type)`
+   - 상세 정보: `ID: {id} · Type: {type}` → `Label: {label}`
+
+### 변경 전/후:
+- 선택: `Do (node1)` → `node1(do)`
+- 드롭다운: `Do` / `ID: node1 · Type: do` → `node1(do)` / `Label: Do`
+
+---
+
+## 12. MappingEditorModal Record 드롭다운 형식 구현
+
+### 요구사항:
+- Record 타입을 접었다 펼 수 있는 드롭다운 형식으로 변경
+- 이미지 참고 디자인 적용
+
+### 수정된 파일:
+1. **src/components/MappingEditorModal.tsx**
+   - `ChevronRight` 아이콘 import 추가
+   - `expandedSourceRecords`, `expandedTargetRecords` 상태 추가
+   - `flattenFields` 함수 수정 - expandedSet 파라미터 추가
+   - `toggleSourceRecord`, `toggleTargetRecord` 함수 추가
+   - Source OUTPUT 렌더링 완전 재작성:
+     - Record 타입 앞에 화살표 아이콘 (▶/▼)
+     - 클릭 시 children 펼침/접힘 토글
+     - children 왼쪽에 세로선 표시
+     - fieldType을 필드명 아래 별도 줄로 표시
+     - Record는 드래그 불가
+   - Target INPUT 렌더링 동일하게 수정
+
+### UI 표시:
+```
+SOURCE OUTPUT
+┌─────────────────────────────────────┐
+│ ▼  REC1                          ● │
+│    Table                           │
+│ │  RSC_LAB                       ● │
+│ │  String                          │
+│ │  RSL_PNS                       ● │
+│ │  String                          │
+│ ▶  ACCT_INPR_REC                 ● │
+│    Table                           │
+│    SYSYN                         ● │
+│    String                          │
+└─────────────────────────────────────┘
+```
+
+### 동작:
+- Record 타입 클릭 → children 펼침/접힘 토글
+- 일반 필드만 드래그하여 매핑 가능
+- Record 자체는 드래그 불가
+
+---
+
+## 13. 노드 타입과 레이블 통일
+
+### 요구사항:
+- 노드 타입과 레이블을 일치시킴
+- 띄어쓰기, 특수문자 제거
+- CLAUDE.md에 타입 정보 기록
+
+### 변경 전/후 (띄어쓰기, 특수문자 제거):
+
+| type | 변경 전 | 변경 후 |
+|------|---------|---------|
+| condition | If/Else | IfElse |
+| forEach | For Each | ForEach |
+| do | Call DO | CallDO |
+| group | Method | Method (유지) |
+| callGroup | Call Method | CallMethod |
+
+### 수정된 파일:
+1. **src/components/PaneContextMenu.tsx**
+   - menuItems의 label 변경
+
+2. **src/components/ContainerFlowModal.tsx**
+   - nodeMenuItems의 label 변경
+   - labelMap 변경
+   - getTypeConfig()의 title 변경
+   - 'Unnamed Method' → 'Group' 변경
+
+3. **src/components/DONode.tsx**
+   - 헤더 텍스트 'Call DO' → 'DO' 변경
+
+4. **src/components/CallGroupNode.tsx**
+   - 'Call Method' → 'CallGroup' 변경
+   - 'Select Method' → 'Select Group' 변경
+
+5. **src/components/GroupNode.tsx**
+   - 'New Method' → 'Group' 변경
+
+6. **src/components/ForEachNode.tsx**
+   - 'For Each' → 'ForEach' 변경
+
+7. **src/components/ForEachEditModal.tsx**
+   - 'For Each Loop' → 'ForEach' 변경
+
+8. **src/App.tsx**
+   - 노드 생성 시 레이블 변경
+
+9. **CLAUDE.md**
+   - 노드 타입 및 레이블 정의 테이블 추가
+   - "절대 변경 금지" 명시
+
+### CLAUDE.md 추가 내용:
+```markdown
+### 노드 타입 및 레이블 정의 (절대 변경 금지)
+
+| type | label | 설명 |
+|------|-------|------|
+| start | Start | 시작 노드 |
+| end | End | 종료 노드 |
+| process | Process | 일반 프로세스 노드 |
+| variable | Variable | 변수 노드 |
+| ... (총 15개 타입) |
+
+**중요**: type과 label은 항상 일치해야 합니다.
+```
+
+---
+
+## 14. 노드 타입을 PascalCase로 전면 변경
+
+### 요구사항:
+- 노드 `type` 값 자체를 PascalCase로 변경
+- `nodeId(type)` 형식으로 표시 시 깔끔한 표현을 위함
+- CLAUDE.md에 정확한 타입 정의 반영
+
+### 변경 전/후:
+
+| 변경 전 | 변경 후 |
+|---------|---------|
+| `start` | `Start` |
+| `end` | `End` |
+| `process` | `Process` |
+| `variable` | `Variable` |
+| `mapping` | `Mapping` |
+| `script` | `Script` |
+| `condition` | `IfElse` |
+| `switch` | `Switch` |
+| `do` | `CallDO` |
+| `error` | `Error` |
+| `while` | `While` |
+| `for` | `For` |
+| `forEach` | `ForEach` |
+| `group` | `Method` |
+| `callGroup` | `CallMethod` |
+
+### 수정된 파일:
+
+1. **src/App.tsx**
+   - `nodeTypes` 객체 키 변경
+   - `initialNodes`의 type 변경 (`'start'` → `'Start'`, `'end'` → `'End'`)
+   - `isValidConnection` 함수 내 containerTypes 배열 변경
+   - `onNodeDragStop` 함수 내 type 비교 변경
+   - `getAvailableGroups` 함수 내 `'group'` → `'Method'`
+   - `addNode` 함수 내 모든 type 비교 변경
+   - 내부 Start/End 노드 type 변경 (`'process'` → `'Process'`)
+   - `deleteSelectedElements` 함수 내 containerTypes 배열 변경
+   - `onNodeDoubleClick` 함수 내 모든 type 비교 변경
+   - `onNodeContextMenu` 함수 내 type 비교 변경
+
+2. **src/components/PaneContextMenu.tsx**
+   - `menuItems` 배열의 모든 type 값을 PascalCase로 변경
+
+3. **src/components/ContainerFlowModal.tsx**
+   - `ContainerFlowModalProps` interface의 containerType 타입 변경
+   - `nodeMenuItems` 배열의 모든 type 값 변경
+   - `nodeTypes` 객체 키 변경
+   - `getAllDescendantNodes` 함수 내 containerTypes 배열 변경
+   - `getInitialNodes` 함수 내 Start/End 노드 type 변경
+   - 노드 콜백 주입 시 type 비교 변경
+   - `labelMap` 객체 키 변경
+   - `getAvailableGroups` 함수 내 `'group'` → `'Method'`
+   - `addNode` 함수 내 type 비교 변경
+   - `onNodeDoubleClick` 함수 내 모든 type 비교 변경
+
+4. **src/components/ScriptEditModal.tsx**
+   - Variable 노드 필터링: `'variable'` → `'Variable'`
+
+5. **src/utils/relationshipUtils.ts**
+   - Start 노드 찾기: `'start'` → `'Start'`
+   - 주석의 컨테이너 노드 설명 변경
+
+6. **CLAUDE.md**
+   - 노드 타입 테이블 업데이트
+   - type과 label이 동일한 PascalCase 값 사용
+   - TypeScript interface 예시의 type 값 변경
+   - 컨테이너 노드 설명 변경
+
+### 주요 변경점:
+- 이제 `type`과 `label`이 동일한 값을 사용
+- 예: `type: 'IfElse'`, `label: 'IfElse'`
+- MappingEditorModal에서 `nodeId(type)` 표시 시: `node1(IfElse)`
+
+---
+
+## 15. 노드 편집 버튼 추가 (더블클릭 → 버튼 클릭으로 변경)
+
+### 요구사항:
+- 더블클릭으로 모달을 여는 방식을 버튼 클릭으로 변경
+- 모든 노드에 적절한 편집/확장 버튼 추가
+- "더블클릭하여..." 힌트 텍스트 제거
+
+### 수정된 파일:
+
+1. **src/components/ConditionNode.tsx**
+   - `Pencil` 아이콘 import 추가
+   - "더블클릭하여 EXPRESSION 입력" 텍스트 제거
+   - expression이 있을 때만 표시 영역 렌더링
+   - "Edit" 버튼 추가 (클릭 시 `data.onEdit()` 호출)
+
+2. **src/components/ScriptNode.tsx**
+   - `Pencil` 아이콘 import 추가
+   - "더블클릭하여 스크립트를 편집하세요" 텍스트 제거
+   - "Edit Script" 버튼 추가
+
+3. **src/components/MappingNode.tsx**
+   - `Pencil` 아이콘 import 추가
+   - "더블클릭하여 매핑 설정" 텍스트 제거
+   - "Edit Mapping" 버튼 추가 (보라색 테마)
+
+4. **src/components/ForNode.tsx**
+   - `Maximize2` 아이콘 import 추가
+   - "더블클릭하여 확장" 텍스트 제거
+   - "Expand" 버튼 추가 (보라색 테마)
+
+5. **src/components/ForEachNode.tsx**
+   - `Maximize2` 아이콘 import 추가
+   - "더블클릭하여 확장" 텍스트 제거
+   - "Expand" 버튼 추가 (라임색 테마)
+
+6. **src/components/GroupNode.tsx**
+   - `Maximize2` 아이콘 import 추가
+   - "더블클릭하여 확장" 텍스트 제거
+   - "Expand" 버튼 추가 (파란색 테마)
+
+7. **src/components/WhileNode.tsx**
+   - `Maximize2` 아이콘 import 추가
+   - `id` prop 추가
+   - nodeId 표시 추가
+   - "Expand" 버튼 추가 (앰버색 테마)
+
+8. **src/components/ErrorNode.tsx**
+   - `Pencil` 아이콘 import 추가
+   - "Edit" 버튼 추가 (빨간색 테마)
+
+9. **src/App.tsx**
+   - `openNodeEditor(nodeId)` 함수 추가
+     - 노드 타입에 따라 적절한 모달 열기
+     - Container 노드: ContainerFlowModal
+     - Mapping 노드: MappingEditorModal
+     - IfElse 노드: ConditionModal
+     - Script 노드: ScriptModal
+     - Error 노드: CodeModal
+   - `addNode()` 함수 수정
+     - 모든 노드에 `onEdit: () => openNodeEditor(id)` 콜백 추가
+   - Error 노드 기본 라벨 변경: '두번 클릭하여 에러 코드를 선택해주세요' → 'Error'
+
+10. **src/components/ContainerFlowModal.tsx**
+    - `openNodeEditor(nodeId)` 함수 추가
+    - 초기 노드 설정 시 `onEdit` 콜백 주입
+    - `addNode()` 함수에 `onEdit` 콜백 추가
+
+### 버튼 스타일:
+| 노드 타입 | 버튼 텍스트 | 색상 |
+|----------|------------|------|
+| ConditionNode | Edit | 파란색 (#5277f7) |
+| ScriptNode | Edit Script | 파란색 (#5277f7) |
+| MappingNode | Edit Mapping | 보라색 (#8b5cf6) |
+| ForNode | Expand | 보라색 (purple-500) |
+| ForEachNode | Expand | 라임색 (lime-500) |
+| GroupNode | Expand | 파란색 (#5277f7) |
+| WhileNode | Expand | 앰버색 (amber-500) |
+| ErrorNode | Edit | 빨간색 (red-500) |
+
+### 동작:
+- 각 버튼에 `nodrag nopan` 클래스 적용으로 노드 드래그 방지
+- `e.stopPropagation()` 으로 이벤트 버블링 방지
+- `data.onEdit?.()` 호출로 안전하게 콜백 실행
+
+---
+
+## 16. 매핑 노드 타입 제한 기능 추가
+
+### 요구사항:
+- Record는 Record끼리만 매핑 가능
+- Field는 Field끼리만 매핑 가능
+- 타입이 다른 필드 간 매핑 시도 시 자동 차단
+
+### 수정된 파일:
+1. **src/components/MappingEditorModal.tsx**
+   - `handleDragStart` 함수 수정:
+     - `isRecord` 파라미터 추가
+     - `sourceIsRecord` 데이터를 drag event에 추가
+   - `handleDrop` 함수 수정:
+     - `targetIsRecord` 파라미터 추가
+     - Source와 Target의 `isRecord` 값 비교
+     - 타입 불일치 시 매핑 생성 차단 및 경고 로그 출력
+   - Source OUTPUT 렌더링:
+     - Record 필드도 드래그 가능하도록 변경 (`draggable={true}`)
+     - `handleDragStart`에 `field.isRecord` 전달
+     - 커서 스타일 통일 (`cursor: 'grab'`)
+   - Target INPUT 렌더링:
+     - Record 필드도 드롭 가능하도록 변경
+     - `handleDrop`에 `field.isRecord` 전달
+
+### 동작 방식:
+```
+Source OUTPUT          Target INPUT
+─────────────          ────────────
+Record1      ──────→   Record2     ✓ (Record ↔ Record)
+  └ Field1   ──────→     └ Field2  ✓ (Field ↔ Field)
+  └ Field1   ──X───→   Record2     ✗ (Field → Record 차단)
+Record1      ──X───→     └ Field2  ✗ (Record → Field 차단)
+```
+
+### 검증 로직:
+```javascript
+// handleDrop 내부
+if (sourceIsRecord !== targetIsRecord) {
+  console.warn('Type mismatch: Record can only map to Record, Field can only map to Field');
+  return; // 매핑 생성 차단
+}
+```
+
+---
+
+## 17. 네이밍 규칙 통일 - PascalCase 적용
+
+### 요구사항:
+- 소문자로만 된 컨테이너 타입 문자열을 PascalCase로 통일
+- 노드 타입 체크 시 일관된 네이밍 사용
+
+### 수정된 파일:
+
+1. **src/App.tsx**
+   - 라인 731: containerType 타입 정의 변경
+     - 변경 전: `containerType: 'group' | 'while' | 'for' | 'forEach' | null`
+     - 변경 후: `containerType: 'Method' | 'While' | 'For' | 'ForEach' | null`
+   - 라인 1507: copySelectedNodes 함수 내 containerTypes 배열 변경
+     - 변경 전: `['group', 'while', 'for']`
+     - 변경 후: `['Method', 'While', 'For']`
+   - 라인 1539: pasteNodes 함수 내 containerTypes 배열 변경
+     - 변경 전: `['group', 'while', 'for']`
+     - 변경 후: `['Method', 'While', 'For']`
+   - 라인 2050: handleContainerFlowSave 함수 내 type 비교 배열 변경
+     - 변경 전: `['for', 'forEach', 'while', 'group']`
+     - 변경 후: `['For', 'ForEach', 'While', 'Method']`
+   - 라인 2098-2105: loopData 저장 시 containerType 비교 변경
+     - 변경 전: `containerType === 'for'`, `'forEach'`, `'while'`
+     - 변경 후: `containerType === 'For'`, `'ForEach'`, `'While'`
+
+2. **src/components/IOPanel.tsx**
+   - 라인 30-34: 노드 타입 체크 로직 수정
+     - 변경 전:
+       ```typescript
+       const isIMO = nodeType === 'imo';
+       const isIDO = nodeType === 'ido';
+       const isMapping = nodeType === 'mapping';
+       ```
+     - 변경 후:
+       ```typescript
+       const isCallDO = nodeType === 'CallDO';
+       const isIMO = isCallDO && selectedNode?.data?.ido?.type === 'IMO';
+       const isIDO = isCallDO && selectedNode?.data?.ido?.type === 'IDO';
+       const isMapping = nodeType === 'Mapping';
+       ```
+   - IMO/IDO는 노드 타입이 아닌 CallDO 노드의 data.ido.type 속성값임을 반영
+
+### 변경 요약:
+| 위치 | 변경 전 | 변경 후 |
+|------|---------|---------|
+| containerType 타입 | `'group' \| 'while' \| 'for' \| 'forEach'` | `'Method' \| 'While' \| 'For' \| 'ForEach'` |
+| containerTypes 배열 | `['group', 'while', 'for']` | `['Method', 'While', 'For']` |
+| type 비교 배열 | `['for', 'forEach', 'while', 'group']` | `['For', 'ForEach', 'While', 'Method']` |
+| IOPanel IMO/IDO 체크 | `nodeType === 'imo'` | `isCallDO && data?.ido?.type === 'IMO'` |
+| IOPanel Mapping 체크 | `nodeType === 'mapping'` | `nodeType === 'Mapping'` |
+
+---
+
+## 18. MappingEditorModal 선 제거 및 매핑 목록 개선
+
+### 요구사항:
+- 매핑 시 연결선(SVG) 표시 제거
+- 매핑 목록에서 노드 정보 표시 (예: `node1.output.USR_ID → node2.input.USR_ID`)
+
+### 수정된 파일:
+
+1. **src/components/MappingEditorModal.tsx**
+   - SVG 연결선 렌더링 제거:
+     - `renderConnections` 함수 삭제 (라인 385-479)
+     - SVG 요소 제거 (라인 770-782)
+     - `dragPosition` 상태 변수 제거
+     - 드래그 중 마우스 이동/스크롤 이벤트 핸들러 useEffect 제거
+
+   - 매핑 목록 표시 개선:
+     - 변경 전: `{sourceFieldName} → {targetFieldName}`
+     - 변경 후: `{sourceNodeId}.output.{sourceFieldName} → {targetNodeId}.input.{targetFieldName}`
+     - 레이아웃 변경: `flexWrap: 'wrap'` → `flexDirection: 'column'`
+     - 폰트 크기 조정: `12px` → `11px`
+     - maxHeight 증가: `120px` → `180px`
+
+### 변경 전/후:
+
+**연결선:**
+- 변경 전: 필드 간 SVG 곡선으로 연결 표시
+- 변경 후: 연결선 없음 (매핑 목록으로만 확인)
+
+**매핑 목록 표시:**
+```
+변경 전:
+USR_ID → USR_ID
+
+변경 후:
+node1.output.USR_ID → node2.input.USR_ID
+```
+
+### 삭제된 코드:
+- `const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);`
+- 드래그 스크롤 이벤트 감지 useEffect (20줄)
+- `renderConnections` 함수 (95줄)
+- SVG 요소 (13줄)
+
+---
+
+## 19. MappingEditorModal 매핑 목록 확장 및 하이라이트 기능
+
+### 요구사항:
+- 매핑 목록을 확대/축소할 수 있는 버튼 추가
+- 새로 추가된 매핑 항목을 특별하게 표시 (하이라이트)
+
+### 수정된 파일:
+
+1. **src/components/MappingEditorModal.tsx**
+   - `Maximize2`, `Minimize2` 아이콘 import 추가
+   - 새로운 상태 변수 추가:
+     - `isMappingListExpanded`: 매핑 목록 확장 상태
+     - `recentlyAddedId`: 최근 추가된 매핑 ID (하이라이트용)
+   - 매핑 추가 시 하이라이트 처리:
+     - `setRecentlyAddedId(newMappingId)` 호출
+     - 2초 후 자동으로 하이라이트 해제 (`setTimeout`)
+   - 매핑 목록 UI 개선:
+     - 확대/축소 버튼 추가 (우측 상단)
+     - 축소: maxHeight 180px, 확대: maxHeight 400px
+     - 전환 시 애니메이션 효과 (`transition: max-height 0.3s`)
+   - 새 항목 하이라이트 스타일:
+     - 배경색: `#fef3c7` (연한 황색)
+     - 테두리: `2px solid #f59e0b` (주황색)
+     - 그림자: `0 0 8px rgba(245, 158, 11, 0.4)` (글로우 효과)
+     - "NEW" 배지 표시
+   - 불필요한 `setDragPosition` 호출 제거 (이전 작업에서 누락된 부분)
+
+### UI 변경:
+
+**매핑 목록 헤더:**
+```
+┌─────────────────────────────────────────────────────┐
+│ 🔗 매핑 목록 (3개)                    [확대] 버튼  │
+└─────────────────────────────────────────────────────┘
+```
+
+**새로 추가된 항목 (2초간 표시):**
+```
+┌─────────────────────────────────────────────────────┐
+│ [NEW] node1.output.USR_ID → node2.input.USR_ID  🗑️ │
+│ (황색 배경, 주황색 테두리, 글로우 효과)              │
+└─────────────────────────────────────────────────────┘
+```
+
+### 동작:
+1. 드래그&드롭으로 매핑 추가
+2. 새 항목에 "NEW" 배지와 황색 하이라이트 표시
+3. 2초 후 일반 스타일로 전환 (fade out 효과)
+4. 확대 버튼 클릭 시 목록 높이 180px → 400px로 확장
+5. 축소 버튼 클릭 시 다시 180px로 축소
+
+---

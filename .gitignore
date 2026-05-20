@@ -21,3 +21,16 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# IDE/tooling
+.idea/
+.claude/
+.vscode/
+
+# local backups
+*.zip
+
+# local scripts / notes
+deploy.sh
+project-info.txt
+

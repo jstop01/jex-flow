@@ -1,0 +1,46 @@
+# 2026-01-27 수정사항
+
+## 1. Container 노드 ID 변경 시 "Parent node not found" 에러 수정
+
+### 문제:
+- For, While, ForEach, Method 등 컨테이너 노드의 ID를 변경할 때 "Parent node {newId} not found" 에러 발생
+- 원인: React Flow는 노드 배열에서 부모 노드가 자식 노드보다 먼저 나와야 함
+- ID 변경 시 자식 노드의 parentId가 새 ID로 업데이트되지만, 배열 순서에 따라 부모 노드보다 먼저 처리될 수 있음
+
+### 수정된 파일:
+1. **src/App.tsx** (handleIdChangeSave 함수)
+   - 노드 업데이트 후 부모-자식 관계에 따라 정렬하는 로직 추가
+   - 부모 노드가 자식 노드보다 먼저 배열에 위치하도록 보장
+   ```typescript
+   // 부모 노드가 자식 노드보다 먼저 오도록 정렬 (React Flow 요구사항)
+   const sortedNodes = nextNodes.sort((a, b) => {
+     if (b.parentId === a.id) return -1;
+     if (a.parentId === b.id) return 1;
+     return 0;
+   });
+   ```
+   - `nextNodes` 대신 `sortedNodes`를 반환하도록 변경
+   - `takeSnapshot`에도 `sortedNodes` 전달
+
+---
+
+## 2. iframe 미니맵 스타일 적용
+
+### 목적:
+- iframe을 ReactFlow의 미니맵처럼 오버레이 형태로 표시
+
+### 수정된 파일:
+1. **src/pages/MappingListPage.tsx**
+   - 불필요한 포지셔닝 래퍼 제거
+   - iframe 크기에 맞게 콘텐츠만 직접 표시
+   - `position: absolute` 관련 스타일 제거
+
+2. **svc_0002_01.html** (JEXQ 프로젝트)
+   - iframe을 미니맵 스타일로 배치
+   - `position: absolute; right: 12px; bottom: 12px;`
+   - `width: 380px; height: 300px;`
+   - `border-radius: 8px;`
+   - `box-shadow: 0 0 0 1px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.12);`
+   - `z-index: 100;`
+
+---

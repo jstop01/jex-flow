@@ -1,0 +1,48 @@
+# 2026-02-09 수정사항
+
+## 1. Flow Editor 매핑 노드 - 실제 IO 데이터 연동
+
+MOCK_DATA → 실제 백엔드 API 호출로 교체
+
+### 수정된 파일:
+
+1. **src/services/componentService.ts** (신규 생성)
+   - `fetchComponents(filters)` — 컴포넌트 목록 조회 API (`/plugins/p_biz/flow_comp_r001.jct`)
+   - `fetchComponentIO(comId, comTp)` — 컴포넌트 IO 도메인 조회 API (`/plugins/p_biz/flow_comp_r002.jct`)
+   - `mapDomainToIOFields()` — DOMAIN_LIST의 PRPT_INF JSON → IOField 변환
+
+2. **src/components/IDOSearchModal.tsx** (수정)
+   - MOCK_DATA 상수 제거
+   - `fetchComponents` import 추가
+   - `rowData`를 `useMemo` 필터링 → `useState` + API 호출 방식으로 변경
+   - `loadComponents()` 비동기 함수 추가 (검색 필터 기반 API 호출)
+   - 모달 열릴 때 `useEffect`로 초기 목록 로드
+   - 검색 버튼에 `handleSearch` 연결 + loading 상태 표시
+
+3. **src/App.tsx** (수정)
+   - `fetchComponentIO` import 추가
+   - `handleIDOSelect`를 `async`로 변경
+   - 컴포넌트 선택 시 `fetchComponentIO(ido.componentId, ido.type)` 호출
+   - 응답의 `inputs`/`outputs`를 노드 데이터에 세팅
+   - API 실패 시 빈 배열 fallback
+
+### 관련 백엔드 파일 (JEXQ):
+
+4. **SVC_GRP/P_BIZ/.../service/Flow_comp_r001.java** (신규 생성)
+   - 서비스 ID: `flow_comp_r001`
+   - `ComInfoManager.getComInfoListForDao()` 사용
+
+5. **SVC_GRP/P_BIZ/.../service/Flow_comp_r002.java** (신규 생성)
+   - 서비스 ID: `flow_comp_r002`
+   - `IODomainManager.getAllDomainList()` 사용
+
+6. **SVC_GRP/P_BIZ/.../xml/SVC/SVC.flow_comp.xml** (신규 생성)
+   - 부모 컨트롤러 설정
+
+7. **SVC_GRP/P_BIZ/.../xml/SVC/SVC.flow_comp_r001.xml** (신규 생성)
+   - IN: COM_TP, COM_ID, COM_NM, PKG_NM
+   - OUT: COM_LIST (RECORD)
+
+8. **SVC_GRP/P_BIZ/.../xml/SVC/SVC.flow_comp_r002.xml** (신규 생성)
+   - IN: COM_ID, COM_TP
+   - OUT: DOMAIN_LIST (RECORD)

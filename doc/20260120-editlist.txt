@@ -1,0 +1,279 @@
+# 2026-01-20 수정사항
+
+## 1. Concat 매핑 소스 순서 변경 기능
+
+다중 소스(Concat) 매핑에서 소스 필드의 순서를 변경할 수 있는 기능 추가
+
+### 수정된 파일:
+
+**src/components/MappingEditorModal.tsx**
+
+1. import 추가:
+   - `ArrowUp`, `ArrowDown` 아이콘 추가
+
+2. 새로운 함수 추가:
+   ```typescript
+   // 소스 순서 변경 함수 (위로)
+   const moveSourceUp = (mappingId: string, sourceIndex: number) => {
+     if (sourceIndex <= 0) return; // 이미 맨 위
+     setMappings(prev => prev.map(m => {
+       if (m.id === mappingId && m.sources && m.sources.length > 1) {
+         const newSources = [...m.sources];
+         // 위 요소와 swap
+         [newSources[sourceIndex - 1], newSources[sourceIndex]] = [newSources[sourceIndex], newSources[sourceIndex - 1]];
+         return { ...m, sources: newSources };
+       }
+       return m;
+     }));
+   };
+
+   // 소스 순서 변경 함수 (아래로)
+   const moveSourceDown = (mappingId: string, sourceIndex: number) => {
+     setMappings(prev => prev.map(m => {
+       if (m.id === mappingId && m.sources && sourceIndex < m.sources.length - 1) {
+         const newSources = [...m.sources];
+         // 아래 요소와 swap
+         [newSources[sourceIndex], newSources[sourceIndex + 1]] = [newSources[sourceIndex + 1], newSources[sourceIndex]];
+         return { ...m, sources: newSources };
+       }
+       return m;
+     }));
+   };
+
+   // 소스 삭제 함수 (다중 소스 매핑에서 개별 소스 삭제)
+   const removeSource = (mappingId: string, sourceIndex: number) => {
+     setMappings(prev => prev.map(m => {
+       if (m.id === mappingId && m.sources) {
+         const newSources = m.sources.filter((_, idx) => idx !== sourceIndex);
+         // 소스가 0개가 되면 매핑 자체를 삭제
+         if (newSources.length === 0) {
+           return null as any;
+         }
+         return { ...m, sources: newSources };
+       }
+       return m;
+     }).filter(Boolean));
+   };
+   ```
+
+3. 매핑 목록 UI 수정:
+   - 다중 소스 매핑일 때 각 소스별로 개별 UI 표시
+   - 순서 번호 표시 (1, 2, 3...)
+   - 위로 이동 버튼 (ArrowUp 아이콘)
+   - 아래로 이동 버튼 (ArrowDown 아이콘)
+   - 개별 소스 삭제 버튼 (X 아이콘)
+   - 각 소스 사이에 + 구분자 표시
+   - 단일 소스 매핑은 기존 방식 유지
+
+### UI 예시:
+```
+다중 소스 매핑:
++-----------------------------------------------+
+| [1] start.ERR_CD  [↑][↓][X] + [2] start.ERR_MSG [↑][↓][X]  Concat → target.field |
++-----------------------------------------------+
+
+단일 소스 매핑:
++-----------------------------------------------+
+| start.userId → target.userId                   |
++-----------------------------------------------+
+```
+
+### 사용 방법:
+1. Concat 매핑이 있는 매핑 목록에서 해당 항목 확인
+2. 각 소스 옆의 ↑ 버튼으로 순서를 위로 이동
+3. 각 소스 옆의 ↓ 버튼으로 순서를 아래로 이동
+4. X 버튼으로 개별 소스 삭제 가능
+
+### 버튼 상태:
+- 맨 위 소스: ↑ 버튼 비활성화 (회색)
+- 맨 아래 소스: ↓ 버튼 비활성화 (회색)
+- 호버 시: 버튼 색상 파란색으로 변경
+
+---
+
+## 2. 매핑 목록 클릭 시 소스/타겟 노드 자동 변경 기능
+
+매핑 목록에서 항목을 클릭했을 때, 해당 매핑의 소스 노드와 타겟 노드가 현재 선택된 노드와 다르면 자동으로 변경하여 연결선이 화면에 표시되도록 수정
+
+### 수정된 파일:
+
+**src/components/MappingEditorModal.tsx**
+
+1. 매핑 목록 항목 클릭 핸들러 수정 (1371-1393 라인):
+   - 기존: `onClick={() => setSelectedMappingId(isSelectedMapping ? null : m.id)}`
+   - 수정 후: `handleMappingClick` 함수로 변경
+
+2. 새로운 핸들러 함수 추가:
+   ```typescript
+   // 매핑 클릭 시 해당 소스/타겟 노드로 변경하는 핸들러
+   const handleMappingClick = () => {
+     if (isSelectedMapping) {
+       // 이미 선택된 매핑을 다시 클릭하면 선택 해제
+       setSelectedMappingId(null);
+     } else {
+       // 새로운 매핑 선택
+       setSelectedMappingId(m.id);
+
+       // 클릭한 매핑의 소스 노드로 변경 (현재 선택과 다른 경우)
+       const firstSource = sources[0];
+       if (firstSource && firstSource.nodeId !== sourceNodeId) {
+         setSourceNodeId(firstSource.nodeId);
+         sourceFieldRefs.current.clear();
+       }
+
+       // 클릭한 매핑의 타겟 노드로 변경 (현재 선택과 다른 경우)
+       if (m.targetNodeId !== targetNodeId) {
+         setTargetNodeId(m.targetNodeId);
+         targetFieldRefs.current.clear();
+       }
+     }
+   };
+   ```
+
+### 동작 방식:
+1. 매핑 목록에서 항목 클릭
+2. 해당 매핑의 첫 번째 소스 노드가 현재 선택된 소스 노드와 다르면 → 소스 드롭다운 자동 변경
+3. 해당 매핑의 타겟 노드가 현재 선택된 타겟 노드와 다르면 → 타겟 드롭다운 자동 변경
+4. 해당 매핑이 선택됨 (하이라이트 표시)
+5. 연결선이 화면에 표시됨
+
+### 사용 예시:
+- 소스 노드 A, 타겟 노드 B가 선택된 상태
+- 매핑 목록에서 "소스 노드 C → 타겟 노드 D" 매핑 클릭
+- 자동으로 소스 노드 C, 타겟 노드 D로 변경됨
+- 해당 매핑의 연결선이 화면에 표시됨
+
+### 추가 수정 - 하이라이팅 유지 문제 해결
+
+**문제**: 매핑 클릭 시 노드는 전환되지만 하이라이팅이 바로 풀림
+
+**원인**: 노드 변경 시 `setSelectedMappingId(null)`을 호출하는 useEffect 존재
+
+**해결**:
+1. `isNodeChangeFromMappingClick` ref 추가 (93-94 라인)
+2. useEffect에서 플래그 확인하여 매핑 클릭으로 인한 노드 변경이면 선택 해제 건너뜀 (285-291 라인)
+3. handleMappingClick에서 노드 변경 전 플래그 설정 (1393-1396 라인)
+
+```typescript
+// ref 추가
+const isNodeChangeFromMappingClick = useRef(false);
+
+// useEffect 수정
+if (isNodeChangeFromMappingClick.current) {
+  isNodeChangeFromMappingClick.current = false; // 플래그 리셋
+} else {
+  setSelectedMappingId(null); // 드롭다운에서 직접 변경한 경우에만 해제
+}
+
+// 핸들러에서 플래그 설정
+if (needSourceChange || needTargetChange) {
+  isNodeChangeFromMappingClick.current = true;
+}
+```
+
+---
+
+## 3. ConditionNode 표시명 통일
+
+IfElse 노드 생성 시 노드 형상에 "if"로 표시되던 것을 "IfElse"로 통일
+
+### 수정된 파일:
+
+**src/components/ConditionNode.tsx**
+
+- 48번 라인: `if` → `IfElse`로 변경
+
+```tsx
+// 변경 전
+<div className="text-sm font-bold text-slate-700">if</div>
+
+// 변경 후
+<div className="text-sm font-bold text-slate-700">IfElse</div>
+```
+
+---
+
+## 4. MappingEditorModal 매핑 목록 대폭 수정
+
+### 변경 내용:
+
+1. **매핑 목록 표시 조건 변경**
+   - 기존: 모든 매핑을 상시 표시
+   - 변경: 타겟 노드 선택 시에만 해당 타겟에 연결된 매핑만 표시
+
+2. **Concat 기능 (다중 소스 매핑) 삭제**
+   - 기존: 같은 타겟 필드에 여러 소스를 연결하면 Concat으로 합쳐짐
+   - 변경: 항상 1:1 매핑만 생성, 중복 매핑 방지
+
+3. **매핑 순서 변경 기능 추가**
+   - 각 매핑 항목 왼쪽에 위/아래 화살표 버튼 추가
+   - 필터된 목록 내에서 순서 변경 가능
+
+### 수정된 파일:
+
+**src/components/MappingEditorModal.tsx**
+
+1. import 변경 (2 라인):
+   - `ArrowLeft, ArrowRight` → `ArrowUp, ArrowDown`
+
+2. 삭제된 코드:
+   - `isMappingListExpanded` 상수 (110-111 라인)
+   - `moveSourceUp`, `moveSourceDown`, `removeSource` 함수 (소스 순서 변경용)
+
+3. 추가된 함수 (501-537 라인):
+   ```typescript
+   // 매핑 순서 변경 함수 (위로)
+   const moveMappingUp = (mappingId: string, filteredMappings: MappingConnection[]) => {...}
+
+   // 매핑 순서 변경 함수 (아래로)
+   const moveMappingDown = (mappingId: string, filteredMappings: MappingConnection[]) => {...}
+   ```
+
+4. handleDrop 함수 수정 (418-472 라인):
+   - 기존: 같은 타겟에 드롭 시 기존 매핑에 소스 추가 (Concat)
+   - 변경: 항상 새 매핑 생성, 동일한 소스-타겟 매핑 중복 방지
+
+5. 매핑 목록 UI 전체 재작성 (1326-1585 라인):
+   - 타겟 노드 선택 시에만 표시
+   - 해당 타겟 노드에 연결된 매핑만 필터링
+   - 각 매핑 항목에 위/아래 순서 변경 버튼 추가
+   - Concat 관련 UI 모두 제거 (첫 번째 소스만 표시)
+   - 타겟 필드만 표시 (타겟 노드 ID 생략)
+
+### UI 변경:
+
+```
+기존:
++------------------------------------------------------------------+
+| 매핑 목록 (5개)                                                    |
+| [1] start.field1 [↑][↓][X] + [2] node1.field2 [↑][↓][X] Concat → end.target |
++------------------------------------------------------------------+
+
+변경:
++------------------------------------------------------------------+
+| end 매핑 목록 (3개)                                                |
+| [↑][↓] start.field1 → target1 [변환] [삭제]                       |
+| [↑][↓] node1.field2 → target2 [변환] [삭제]                       |
++------------------------------------------------------------------+
+```
+
+### 추가 수정 - 매핑 목록 표시 조건 변경
+
+**문제**: 타겟 노드 선택만으로 매핑 목록이 표시됨
+
+**수정 내용**:
+1. `selectedTargetField` state 추가 (117 라인)
+2. 타겟 필드 클릭 시 해당 필드 선택/해제 토글
+3. 매핑 목록은 선택된 타겟 필드에 연결된 매핑만 표시
+4. 타겟 노드 변경 시 `selectedTargetField` 초기화
+5. 매핑 목록 헤더에 필드명 표시 (예: "userId 매핑 목록 (2개)")
+6. 각 매핑 항목에서 타겟 필드명 제거 (헤더에 이미 표시됨)
+
+**동작 방식**:
+- 기본: 매핑 목록 안 보임
+- 타겟 필드 클릭: 해당 필드에 연결된 매핑 목록 표시
+- 같은 필드 다시 클릭: 매핑 목록 닫힘
+- 다른 필드 클릭: 해당 필드의 매핑 목록으로 전환
+
+---
+

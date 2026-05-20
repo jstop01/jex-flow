@@ -1,0 +1,29 @@
+# 2026-01-26 수정사항
+
+## 1. ScriptEditModal 수정 - 변수 등록 패널 제거 및 스크립트 타입 콤보박스 추가
+
+### 수정된 파일:
+1. **src/components/ScriptEditModal.tsx**
+   - 오른쪽 변수 등록 패널(Variable Registration) 전체 제거
+   - 패널 토글 버튼 제거
+   - 스크립트 타입 콤보박스 추가 (Java, JavaScript)
+     - 헤더의 "자동완성 관리" 버튼 옆에 배치
+     - 기존 scriptTypeOptions (표준, 함수, 표현식) → (Java, JavaScript)로 변경
+   - 사용하지 않는 import 정리
+     - Plus, Trash2, Database, ChevronLeft, ChevronRight 제거
+     - IOField import 제거
+   - 사용하지 않는 state 및 함수 제거
+     - showTypeDropdown, showFieldDropdown, selectedSourceType, selectedField, newVariableName state 제거
+     - isPanelCollapsed state를 showScriptTypeDropdown으로 변경
+     - getUpstreamNodeIds, getSourceTypeOptions, getFieldOptions, handleRegisterVariable, handleDeleteVariable 함수 제거
+   - 모달 너비 축소 (1600px → 1000px)
+
+### 변경 전:
+- 모달 두 컬럼 레이아웃 (스크립트 편집기 + 변수 등록 패널)
+- 스크립트 타입: 표준, 함수, 표현식
+
+### 변경 후:
+- 모달 단일 컬럼 레이아웃 (스크립트 편집기만)
+- 스크립트 타입: Java, JavaScript (헤더 콤보박스)
+
+---

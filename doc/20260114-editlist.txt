@@ -1,0 +1,163 @@
+# 2026-01-14 수정사항
+
+## 1. UI 라벨 camelCase 변환 (uppercase 패턴 제거)
+
+사용자 요청에 따라 모든 UI 라벨을 camelCase 형식으로 변환 (노드 타입 정의는 제외)
+
+### 수정된 파일:
+
+1. **src/components/IOPanel.tsx**
+   - "IMO INFORMATION" → "imoInformation"
+   - "IDO INFORMATION" → "idoInformation"
+   - "SERVICE ID" → "serviceId"
+   - "SERVICE NAME" → "serviceName"
+   - "PACKAGE" → "package"
+   - "CLASS" → "class"
+   - "Node ID" → "nodeId"
+   - "Selected Node" → "selectedNode"
+   - "IMO Details" → "imoDetails"
+   - "IDO Details" → "idoDetails"
+   - "Mapping Details" → "mappingDetails"
+   - "I/O Details" → "i/oDetails"
+   - "Eng Name" → "engName"
+   - "Kor Name" → "korName"
+   - "DB Vendor 별 SQL" → "dbVendor 별 sql"
+   - "SQL and Dynamic" → "sql and dynamic"
+   - "SQL 타입" → "sql 타입"
+   - "SQL" → "sql"
+   - "Type:" → "type:"
+   - placeholder "SQL Type..." → "sql type..."
+   - IOTable, MappingTable 헤더에서 uppercase 클래스 제거
+
+2. **src/components/DONode.tsx**
+   - "Linked DO" → "linkedDO"
+   - "Return Type" → "returnType"
+   - "Select DO..." → "select DO..."
+   - "Select Return Type..." → "select returnType..."
+
+3. **src/components/ConditionNode.tsx**
+   - "IF" → "if" (uppercase 클래스 제거)
+
+4. **src/components/SwitchNode.tsx**
+   - "Expression" → "expression"
+   - "Cases" → "cases"
+   - "Add Case" → "addCase"
+
+5. **src/components/CallGroupNode.tsx**
+   - "Select Group" → "selectGroup"
+   - "CallMethod" → "callMethod"
+   - "Select a method..." → "select a method..."
+   - "No methods available" → "no methods available"
+
+6. **src/components/VariableNode.tsx**
+   - "Name" → "name"
+
+7. **src/components/ScriptNode.tsx**
+   - "Type:" → "type:"
+   - "Var:" → "var:"
+
+8. **src/components/ForEditModal.tsx**
+   - "Option 1" → "option1"
+   - "Option 2" → "option2"
+
+9. **src/components/ForEachEditModal.tsx**
+   - "Option 1" → "option1"
+   - "Option 2" → "option2"
+
+10. **src/components/CustomNode.tsx**
+    - "Linked {type}" → "linked {type}"
+    - "Start Node" → "startNode"
+    - "End Node" → "endNode"
+
+11. **src/components/ProcessNode.tsx**
+    - "Linked {type}" → "linked {type}"
+    - "Service Type 선택" → "serviceType 선택"
+
+12. **src/components/ScriptEditModal.tsx**
+    - "Java Script" → "javaScript"
+    - "Source (Node I/O)" → "source (nodeI/O)"
+    - "Field Name" → "fieldName"
+    - "Variable Name (in Script)" → "variableName (inScript)"
+    - "변수 등록 (Variable Registration)" → "변수 등록 (variableRegistration)"
+    - 등록된 변수 헤더에서 uppercase 클래스 제거
+
+13. **src/components/IOSettingModal.tsx**
+    - title 헤더에서 uppercase 클래스 제거
+
+14. **src/components/TextEditModal.tsx**
+    - label 헤더에서 uppercase 클래스 제거
+
+15. **src/components/PaneContextMenu.tsx**
+    - "Add Node" → "addNode"
+
+16. **src/components/ContainerFlowModal.tsx**
+    - "노드 추가" 메뉴에서 uppercase 클래스 제거
+    - "노드 설정" 메뉴에서 uppercase 클래스 제거
+    - "Change Node ID" → "changeNodeId"
+    - placeholder "Enter new node ID" → "enter new nodeId"
+
+17. **src/components/AutocompleteManagerModal.tsx**
+    - 테이블 헤더에서 uppercase 클래스 제거
+
+18. **src/components/IDOSearchModal.tsx**
+    - "Component Type" → "componentType"
+    - "Select Type" → "selectType"
+    - "Package" → "package"
+    - "Package Path" → "packagePath"
+    - "Component ID" → "componentId"
+    - "Comp. Name" → "compName"
+    - "Class Name" → "className"
+    - "Modifier" → "modifier"
+
+19. **src/components/MappingContextMenu.tsx**
+    - "Input Mapping" → "inputMapping"
+    - "Output Mapping" → "outputMapping"
+    - "Change ID" → "changeId"
+
+20. **src/components/GroupContextMenu.tsx**
+    - "Change ID" → "changeId"
+
+21. **src/components/ContextMenu.tsx**
+    - "Change ID" → "changeId"
+
+22. **src/components/ConditionEditModal.tsx**
+    - "Node ID:" → "nodeId:"
+
+23. **src/components/ServiceTypeInputModal.tsx**
+    - "Service Type 설정" → "serviceType 설정"
+
+---
+
+### 유지된 노드 타입 라벨 (사용자 요청에 따라 변경하지 않음):
+- IDO, IMO, While, For, ForEach
+- TRUE, FALSE (boolean 값 표시)
+
+---
+
+## 2. ProcessNode API 서비스 분리
+
+ProcessNode의 서비스 타입 API 로직을 별도 서비스 레이어로 분리
+
+### 신규 파일:
+
+1. **src/types/process.ts**
+   - ServiceTypeOption 인터페이스 정의
+   - ServiceTypeDataResponse 인터페이스 정의
+
+2. **src/data/process-mock.ts**
+   - MOCK_SERVICE_TYPE_DATA: 개발용 목 데이터
+   - 서비스 타입 목록 (기본 프로세스, HTTP 서비스, 데이터베이스, 파일 처리, 큐 처리, 스케줄러)
+
+3. **src/services/processService.ts**
+   - fetchServiceTypes(): 서버에서 서비스 타입 목록 조회
+   - syncServiceTypes(): 서버와 서비스 타입 데이터 동기화
+   - USE_MOCK 플래그로 목 모드/실제 API 모드 전환
+
+### 수정된 파일:
+
+4. **src/components/ProcessNode.tsx**
+   - 인라인 ServiceTypeOption 인터페이스 제거
+   - '../types/process'에서 ServiceTypeOption import
+   - '../services/processService'에서 fetchServiceTypes import
+   - useEffect 내 인라인 API 호출을 서비스 함수 호출로 변경
+

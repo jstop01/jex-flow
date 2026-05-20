@@ -1,0 +1,352 @@
+================================================================================
+                         JEX-FLOW API 응답 데이터 예제
+================================================================================
+
+
+================================================================================
+1. GET /api/process/getType (서비스 타입 목록 조회)
+================================================================================
+
+{
+  "version": "1.0.0",
+  "lastUpdated": 1736899200000,
+  "types": [
+    {
+      "code": "com.process.ProcessDefault",
+      "name": "기본 프로세스"
+    },
+    {
+      "code": "com.process.ProcessHTTP",
+      "name": "HTTP 서비스"
+    },
+    {
+      "code": "com.process.ProcessDB",
+      "name": "데이터베이스"
+    },
+    {
+      "code": "com.process.ProcessFile",
+      "name": "파일 처리"
+    },
+    {
+      "code": "com.process.ProcessQueue",
+      "name": "큐 처리"
+    },
+    {
+      "code": "com.process.ProcessScheduler",
+      "name": "스케줄러"
+    }
+  ]
+}
+
+
+================================================================================
+2. POST /api/process/sync (서비스 타입 데이터 동기화)
+================================================================================
+
+{
+  "version": "1.0.0",
+  "lastUpdated": 1736899200000,
+  "types": [
+    {
+      "code": "com.process.ProcessDefault",
+      "name": "기본 프로세스"
+    },
+    {
+      "code": "com.process.ProcessHTTP",
+      "name": "HTTP 서비스"
+    },
+    {
+      "code": "com.process.ProcessDB",
+      "name": "데이터베이스"
+    },
+    {
+      "code": "com.process.ProcessFile",
+      "name": "파일 처리"
+    },
+    {
+      "code": "com.process.ProcessQueue",
+      "name": "큐 처리"
+    },
+    {
+      "code": "com.process.ProcessScheduler",
+      "name": "스케줄러"
+    }
+  ]
+}
+
+
+================================================================================
+3. GET /api/autocomplete/list (자동완성 데이터 조회)
+================================================================================
+
+{
+  "version": "1.0.0",
+  "lastUpdated": 1736899200000,
+  "items": [
+    {
+      "id": "kw-01",
+      "keyword": "if",
+      "category": "keyword",
+      "description": "조건문"
+    },
+    {
+      "id": "kw-02",
+      "keyword": "else",
+      "category": "keyword",
+      "description": "조건문 분기"
+    },
+    {
+      "id": "kw-03",
+      "keyword": "for",
+      "category": "keyword",
+      "description": "반복문"
+    },
+    {
+      "id": "kw-04",
+      "keyword": "while",
+      "category": "keyword",
+      "description": "while 반복문"
+    },
+    {
+      "id": "kw-05",
+      "keyword": "return",
+      "category": "keyword",
+      "description": "값 반환"
+    },
+    {
+      "id": "dt-01",
+      "keyword": "int",
+      "category": "dataType",
+      "description": "정수 타입"
+    },
+    {
+      "id": "dt-02",
+      "keyword": "String",
+      "category": "dataType",
+      "description": "문자열 타입"
+    },
+    {
+      "id": "dt-03",
+      "keyword": "boolean",
+      "category": "dataType",
+      "description": "논리 타입"
+    },
+    {
+      "id": "mt-01",
+      "keyword": "System.out.println()",
+      "category": "method",
+      "description": "콘솔 출력 (줄바꿈)",
+      "syntax": "System.out.println(Object obj)"
+    },
+    {
+      "id": "mt-02",
+      "keyword": "String.valueOf()",
+      "category": "method",
+      "description": "문자열 변환",
+      "syntax": "String.valueOf(Object obj)"
+    },
+    {
+      "id": "mt-03",
+      "keyword": "Integer.parseInt()",
+      "category": "method",
+      "description": "문자열→정수 변환",
+      "syntax": "Integer.parseInt(String s)"
+    },
+    {
+      "id": "sn-01",
+      "keyword": "try-catch",
+      "category": "snippet",
+      "description": "예외 처리 블록",
+      "syntax": "try {\n  \n} catch (Exception e) {\n  \n}"
+    },
+    {
+      "id": "sn-02",
+      "keyword": "for-loop",
+      "category": "snippet",
+      "description": "for 반복문",
+      "syntax": "for (int i = 0; i < n; i++) {\n  \n}"
+    }
+  ]
+}
+
+
+================================================================================
+4. POST /api/autocomplete/sync (자동완성 데이터 동기화)
+================================================================================
+
+{
+  "version": "1.0.0",
+  "lastUpdated": 1736899200000,
+  "items": [
+    {
+      "id": "kw-01",
+      "keyword": "if",
+      "category": "keyword",
+      "description": "조건문"
+    },
+    {
+      "id": "kw-02",
+      "keyword": "else",
+      "category": "keyword",
+      "description": "조건문 분기"
+    },
+    {
+      "id": "dt-01",
+      "keyword": "int",
+      "category": "dataType",
+      "description": "정수 타입"
+    },
+    {
+      "id": "mt-01",
+      "keyword": "System.out.println()",
+      "category": "method",
+      "description": "콘솔 출력 (줄바꿈)",
+      "syntax": "System.out.println(Object obj)"
+    }
+  ]
+}
+
+
+================================================================================
+5. GET /api/process/getInputFields?serviceType={code} (서비스 타입별 입력 필드 조회)
+================================================================================
+
+[예시: serviceType=com.process.ProcessHTTP]
+{
+  "serviceType": "com.process.ProcessHTTP",
+  "fields": [
+    {
+      "id": "url",
+      "text": "URL",
+      "type": "TEXT",
+      "defaultValue": "https://"
+    },
+    {
+      "id": "method",
+      "text": "HTTP Method",
+      "type": "LIST",
+      "defaultValue": "GET",
+      "listValue": [
+        { "value": "GET", "text": "GET" },
+        { "value": "POST", "text": "POST" },
+        { "value": "PUT", "text": "PUT" },
+        { "value": "DELETE", "text": "DELETE" }
+      ]
+    },
+    {
+      "id": "",
+      "type": "SPLIT",
+      "defaultValue": "인증 설정"
+    },
+    {
+      "id": "authType",
+      "text": "인증 방식",
+      "type": "RADIO",
+      "defaultValue": "none",
+      "listValue": [
+        { "value": "none", "text": "없음" },
+        { "value": "basic", "text": "Basic Auth" },
+        { "value": "bearer", "text": "Bearer Token" }
+      ]
+    },
+    {
+      "id": "username",
+      "text": "사용자명",
+      "type": "TEXT",
+      "defaultValue": "",
+      "parentId": "authType",
+      "parentValue": "basic"
+    },
+    {
+      "id": "password",
+      "text": "비밀번호",
+      "type": "PASSWORD",
+      "defaultValue": "",
+      "parentId": "authType",
+      "parentValue": "basic"
+    },
+    {
+      "id": "token",
+      "text": "Token",
+      "type": "TEXT",
+      "defaultValue": "",
+      "parentId": "authType",
+      "parentValue": "bearer"
+    }
+  ]
+}
+
+[예시: serviceType=com.process.ProcessDB]
+{
+  "serviceType": "com.process.ProcessDB",
+  "fields": [
+    {
+      "id": "dbType",
+      "text": "DB 타입",
+      "type": "LIST",
+      "defaultValue": "mysql",
+      "listValue": [
+        { "value": "mysql", "text": "MySQL" },
+        { "value": "oracle", "text": "Oracle" },
+        { "value": "postgresql", "text": "PostgreSQL" },
+        { "value": "mssql", "text": "MS SQL Server" }
+      ]
+    },
+    {
+      "id": "host",
+      "text": "호스트",
+      "type": "TEXT",
+      "defaultValue": "localhost"
+    },
+    {
+      "id": "port",
+      "text": "포트",
+      "type": "TEXT",
+      "defaultValue": "3306"
+    },
+    {
+      "id": "database",
+      "text": "데이터베이스",
+      "type": "TEXT",
+      "defaultValue": ""
+    },
+    {
+      "id": "",
+      "type": "SPLIT",
+      "defaultValue": "접속 정보"
+    },
+    {
+      "id": "username",
+      "text": "사용자명",
+      "type": "TEXT",
+      "defaultValue": ""
+    },
+    {
+      "id": "password",
+      "text": "비밀번호",
+      "type": "PASSWORD",
+      "defaultValue": ""
+    }
+  ]
+}
+
+
+================================================================================
+6. POST /validate/java (Java 스크립트 문법 검증 - 미구현)
+================================================================================
+
+[성공]
+{
+  "valid": true
+}
+
+[실패]
+{
+  "valid": false,
+  "error": "Line 1: Syntax error - unexpected token ';'"
+}
+
+
+================================================================================
+                              END OF DOCUMENT
+================================================================================

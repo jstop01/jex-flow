@@ -1,0 +1,382 @@
+# 2026-01-19 수정사항
+
+## 1. 매핑 연결선 표시 기능 수정
+
+매핑 모달에서 필드 간 연결 시 시각적 연결선이 표시되도록 수정
+
+### 수정된 파일:
+
+**src/components/MappingEditorModal.tsx**
+
+1. `forceUpdate` 상태를 카운터 방식으로 변경:
+   - 기존: `const [, forceUpdate] = useState({})`
+   - 변경: `const [updateCounter, setUpdateCounter] = useState(0)`
+   - `forceUpdate` 함수를 `useCallback`으로 래핑하여 카운터 증가 방식으로 변경
+
+2. `getConnectionLines` 함수 개선:
+   - 현재 선택된 소스/타겟 노드의 매핑만 표시하도록 필터링 추가
+   - 소스/타겟 필드 ref 검색 로직 개선 (필드명 기반 검색)
+   - 화면에 보이지 않는 요소(width=0) 체크 추가
+   - 의존성 배열에 `sourceNodeId`, `targetNodeId`, `updateCounter` 추가
+
+3. `connectionLines` useMemo 의존성 업데이트:
+   - `updateCounter` 추가하여 스크롤/리렌더 시 연결선 갱신
+
+### 연결선 UI:
+- SVG 베지어 곡선으로 소스 필드와 타겟 필드 연결
+- 소스 끝점: 초록색 원 (#10b981)
+- 타겟 끝점: 주황색 원 (#f59e0b)
+- 연결선: 파란색 (#5277f7)
+
+---
+
+## 2. 매핑 영역 레이아웃 변경 - 가운데 빈 공간 추가
+
+연결선이 더 잘 보이도록 소스와 타겟 필드 사이에 빈 공간 추가
+
+### 수정된 파일:
+
+**src/components/MappingEditorModal.tsx**
+
+레이아웃 변경:
+- 기존: 소스 50% | 타겟 50%
+- 변경: 소스 42% | 가운데 16% | 타겟 42%
+
+가운데 영역 추가:
+- 배경색: #f8fafc (연한 회색)
+- 헤더: "연결" 텍스트
+- 양쪽 border로 구분
+
+```
++------------+--------+------------+
+|  Source    | 연결   |   Target   |
+|  Fields    |  선    |   Fields   |
+|   42%      |  16%   |    42%     |
++------------+--------+------------+
+```
+
+---
+
+## 3. 다중필드연결(MultiConcat) 기능 삭제
+
+사용하지 않는 다중필드연결 기능을 완전히 삭제
+
+### 삭제된 코드:
+
+**src/components/MappingEditorModal.tsx**
+
+1. 삭제된 인터페이스:
+   - `MultiConcatSourceItem`
+   - `MultiConcatConnection`
+
+2. 삭제된 Props:
+   - `initialMultiConcatMappings`
+   - `onSave` 시그니처에서 `multiConcatMappings` 매개변수 제거
+
+3. 삭제된 State:
+   - `multiConcatMappings`
+   - `multiConcatModalOpen`
+   - `editingMultiConcatId`
+   - `multiConcatSources`
+   - `multiConcatTargetNodeId`
+   - `multiConcatTargetField`
+   - `multiConcatSourceDropdownOpen`
+   - `multiConcatTargetDropdownOpen`
+   - `isMultiConcatListExpanded`
+
+4. 삭제된 함수:
+   - `flattenFieldsForSelection`
+   - `startNewMultiConcat`
+   - `cancelMultiConcat`
+   - `addMultiConcatSourceField`
+   - `addMultiConcatSourceText`
+   - `updateMultiConcatSourceText`
+   - `removeMultiConcatSource`
+   - `moveMultiConcatSource`
+   - `saveMultiConcat`
+   - `editMultiConcat`
+   - `removeMultiConcat`
+
+5. 삭제된 UI:
+   - MultiConcat Section (다중 필드 연결 목록)
+   - MultiConcat Modal (다중 필드 연결 편집 모달)
+
+6. 정리된 import:
+   - `Plus`, `Type`, `ArrowUp`, `ArrowDown`, `Layers` 아이콘 제거
+
+**src/App.tsx**
+
+1. 삭제된 import:
+   - `MultiConcatConnection` 타입
+
+2. 수정된 State:
+   - `mappingEditorModal`에서 `multiConcatMappings` 속성 제거
+
+3. 수정된 함수:
+   - `handleMappingEditorSave` 시그니처에서 `multiConcatMappings` 매개변수 제거
+
+4. 수정된 JSX:
+   - `MappingEditorModal`에서 `initialMultiConcatMappings` prop 제거
+
+### 파일 크기 변화:
+- MappingEditorModal.tsx: 2292줄 → 1726줄 (약 566줄 감소)
+
+---
+
+## 4. 테스트용 Import JSON 파일 생성
+
+**docs/test-import-flow.json**
+
+테스트용 플로우 JSON 파일 생성:
+- Start, Variable, Mapping, Process, IfElse, End 노드 포함
+- Mapping 노드에 샘플 매핑 데이터 포함 (userId → targetField1, amount → targetField2)
+- Record 타입 필드 포함 (userInfo with children)
+
+---
+
+## 5. 노드 선택 영역 축소
+
+매핑 모달의 소스/타겟 노드 선택 UI를 더 콤팩트하게 수정
+
+### 수정된 파일:
+
+**src/components/MappingEditorModal.tsx**
+
+1. Node Selection 영역 패딩 축소:
+   - 기존: `16px 24px`
+   - 변경: `8px 16px`
+
+2. 드롭다운 버튼 패딩 축소:
+   - 기존: `12px 16px`
+   - 변경: `6px 10px`
+
+3. 라벨 폰트 크기 축소:
+   - 기존: `14px`
+   - 변경: `12px`
+
+4. 드롭다운 항목 1줄 표시로 변경
+
+5. 드롭다운 최대 높이 축소:
+   - 기존: `240px`
+   - 변경: `180px`
+
+---
+
+## 6. 노드 선택 시 타입 표시 추가
+
+매핑 모달에서 노드 선택 시 ID와 함께 타입도 표시되도록 수정
+
+### 수정된 파일:
+
+**src/components/MappingEditorModal.tsx**
+
+1. 소스 노드 버튼 텍스트:
+   - 기존: `${sourceNode.id}`
+   - 변경: `${sourceNode.id} (${sourceNode.type})`
+
+2. 소스 드롭다운 항목:
+   - 기존: `node.id (출력필드개수)`
+   - 변경: `node.id (node.type)`
+
+3. 타겟 노드 버튼 텍스트:
+   - 기존: `${targetNode.id}`
+   - 변경: `${targetNode.id} (${targetNode.type})`
+
+4. 타겟 드롭다운 항목:
+   - 기존: `node.id (입력필드개수)`
+   - 변경: `node.id (node.type)`
+
+### 표시 예시:
+- 소스: `start (Start)`, `variable1 (Variable)`
+- 타겟: `mapping1 (Mapping)`, `process1 (Process)`
+
+---
+
+## 7. 매핑 목록 항목 클릭 시 연결선 강조 표시
+
+매핑 목록에서 항목 클릭 시 해당 연결선과 필드를 강조 표시
+
+### 수정된 파일:
+
+**src/components/MappingEditorModal.tsx**
+
+1. 새로운 상태 추가:
+   - `selectedMappingId`: 선택된 매핑 ID 저장
+
+2. SVG 연결선 강조:
+   - 선택된 매핑:
+     - 배경선 두께: 8px → 14px, 색상: 주황색
+     - 메인선 두께: 2px → 4px, 색상: 파란색 → 주황색
+     - 끝점 원 크기: r=4 → r=6
+   - 미선택 매핑: opacity 0.3으로 흐리게 표시
+
+3. 매핑 목록 항목:
+   - 클릭 시 해당 매핑 선택 (다시 클릭하면 선택 해제)
+   - 선택된 항목: 주황색 테두리 + 노란 배경 + 그림자
+   - cursor: pointer 추가
+
+4. 소스/타겟 필드 강조:
+   - 선택된 매핑의 소스 필드: 주황색 테두리 + 노란 배경
+   - 선택된 매핑의 타겟 필드: 주황색 테두리 + 노란 배경
+
+5. 노드 변경 시 선택 해제:
+   - 소스/타겟 노드 변경 시 `selectedMappingId` 초기화
+
+### 시각적 효과:
+- 매핑 목록 클릭 → 연결선 두껍게 + 색상 변경
+- 해당 소스/타겟 필드 강조
+- 다른 연결선은 흐리게 표시
+
+---
+
+## 8. 모든 노드에 입력/출력 매핑 기능 추가
+
+모든 노드에서 우클릭 시 입력/출력 매핑 메뉴 표시
+
+### 수정된 파일:
+
+**src/components/ContextMenu.tsx**
+
+1. Props 추가:
+   - `onInputMapping: () => void`
+   - `onOutputMapping: () => void`
+
+2. import 추가:
+   - `ArrowDownToLine`, `ArrowUpFromLine` 아이콘
+
+3. 메뉴 항목 추가:
+   - "입력 매핑" 버튼 (초록색 아이콘)
+   - "출력 매핑" 버튼 (주황색 아이콘)
+   - 구분선 추가
+
+**src/App.tsx**
+
+1. handleInputMapping 수정:
+   - `mappingContextMenu` 또는 `contextMenu`에서 nodeId 가져오기
+   - MappingEditorModal 열기
+
+2. handleOutputMapping 수정:
+   - `mappingContextMenu` 또는 `contextMenu`에서 nodeId 가져오기
+   - MappingEditorModal 열기
+
+3. ContextMenu 렌더링에 props 추가:
+   - `onInputMapping={handleInputMapping}`
+   - `onOutputMapping={handleOutputMapping}`
+
+### 결과:
+- Mapping 노드뿐만 아니라 모든 노드에서 우클릭 시 입력/출력 매핑 사용 가능
+- 동일한 MappingEditorModal 화면 표시
+
+---
+
+## 9. 다중 소스 → 단일 타겟 매핑 (Concat) 기능
+
+여러 소스 필드를 하나의 타겟 필드에 연결하여 값을 연결(Concat)하는 기능
+
+### JSON 데이터 구조 변경:
+
+**기존 구조:**
+```json
+{
+  "id": "map1",
+  "sourceNodeId": "start",
+  "sourceFieldName": "userId",
+  "sourceFieldIndex": 0,
+  "targetNodeId": "process1",
+  "targetFieldName": "reqUserId"
+}
+```
+
+**새로운 구조 (sources 배열):**
+```json
+{
+  "id": "map1",
+  "sources": [
+    { "nodeId": "start", "fieldName": "userId", "fieldIndex": 0 },
+    { "nodeId": "start", "fieldName": "userName", "fieldIndex": 1 }
+  ],
+  "targetNodeId": "process1",
+  "targetFieldName": "userInfo",
+  "separator": " "
+}
+```
+
+### 수정된 파일:
+
+**src/components/MappingEditorModal.tsx**
+
+1. 새로운 인터페이스 추가:
+   ```typescript
+   export interface SourceField {
+     nodeId: string;
+     fieldName: string;
+     fieldIndex?: number;
+   }
+   ```
+
+2. MappingConnection 인터페이스 변경:
+   - `sourceNodeId`, `sourceFieldName`, `sourceFieldIndex` 제거
+   - `sources: SourceField[]` 배열로 변경
+   - `separator?: string` 옵션 추가
+
+3. handleDrop 함수 수정:
+   - 같은 타겟 필드에 드롭 시 기존 매핑의 sources 배열에 추가
+   - 새 타겟 필드에 드롭 시 새 매핑 생성 (sources 배열 1개로 시작)
+
+4. getConnectionLines 함수 수정:
+   - sources 배열 순회하며 각 소스에 대해 연결선 생성
+   - 다중 소스 매핑 시 여러 선이 같은 타겟으로 연결
+
+5. isMapped 체크 로직 수정:
+   - `m.sources.some(s => s.nodeId === ... && s.fieldName === ...)`
+
+6. 매핑 목록 UI 수정:
+   - 다중 소스 표시: `start.userId + start.userName`
+   - "Concat" 배지 표시
+
+**docs/test-import-flow.json**
+
+- 새로운 sources 배열 형식으로 변환
+- 다중 소스 매핑 예시 추가 (map3)
+
+### 사용 방법:
+1. 소스 필드를 타겟 필드로 드래그하여 첫 번째 매핑 생성
+2. 같은 타겟 필드에 다른 소스 필드를 드래그하면 sources 배열에 추가
+3. 드래그한 순서대로 값이 연결됨
+
+### 결과 예시:
+```
+start.ERR_CD + start.ERR_MSG → process1.errorInfo
+```
+
+---
+
+## 10. Start/End 노드 더블클릭 시 IO 설정 모달 열기
+
+Start/End 노드를 더블클릭하면 입출력 설정 모달이 열리도록 구현
+
+### 수정된 파일:
+
+**src/App.tsx**
+
+`onNodeDoubleClick` 핸들러에 Start/End 노드 처리 추가:
+
+```typescript
+if (node.type === 'Start' || node.type === 'End') {
+  setSelectedNodeId(node.id);
+  setIsIOModalOpen(true);
+  return;
+}
+```
+
+### 기능:
+- **Start 노드 더블클릭**: IOSettingModal 열림
+  - outputs 설정 (워크플로우로 전달할 데이터)
+- **End 노드 더블클릭**: IOSettingModal 열림
+  - inputs 설정 (워크플로우에서 받을 데이터)
+
+### 사용 방법:
+1. Start 또는 End 노드를 더블클릭
+2. IOSettingModal에서 필드 추가/삭제/편집
+3. 저장 버튼 클릭
+

@@ -1,0 +1,285 @@
+{
+  "nodes": [
+    {
+      "id": "start",
+      "type": "Start",
+      "position": { "x": 250, "y": 50 },
+      "data": {
+        "label": "Start",
+        "description": "시작 노드",
+        "isStart": true,
+        "inputs": [],
+        "outputs": [
+          { "name": "userId", "type": "String" },
+          { "name": "userName", "type": "String" },
+          { "name": "amount", "type": "Integer" },
+          { "name": "userInfo", "type": "Record", "children": [
+            { "name": "email", "type": "String" },
+            { "name": "phone", "type": "String" }
+          ]}
+        ]
+      },
+      "width": 180,
+      "height": 119
+    },
+    {
+      "id": "variable1",
+      "type": "Variable",
+      "position": { "x": 250, "y": 220 },
+      "data": {
+        "label": "Variable",
+        "description": "변수 설정",
+        "inputs": [
+          { "name": "inputData", "type": "String" },
+          { "name": "inputName", "type": "String" }
+        ],
+        "outputs": [
+          { "name": "processedData", "type": "String" },
+          { "name": "status", "type": "String" }
+        ]
+      },
+      "width": 180,
+      "height": 119
+    },
+    {
+      "id": "mapping1",
+      "type": "Mapping",
+      "position": { "x": 250, "y": 390 },
+      "data": {
+        "label": "Mapping",
+        "description": "데이터 매핑",
+        "inputs": [
+          { "name": "targetField1", "type": "String" },
+          { "name": "targetField2", "type": "Integer" },
+          { "name": "targetField3", "type": "String" }
+        ],
+        "outputs": [
+          { "name": "resultData", "type": "String" },
+          { "name": "resultCode", "type": "String" }
+        ],
+        "mappings": [
+          {
+            "id": "map1",
+            "sources": [
+              { "nodeId": "start", "fieldName": "userId", "fieldIndex": 0 }
+            ],
+            "targetNodeId": "mapping1",
+            "targetFieldName": "targetField1"
+          },
+          {
+            "id": "map2",
+            "sources": [
+              { "nodeId": "start", "fieldName": "amount", "fieldIndex": 2 }
+            ],
+            "targetNodeId": "mapping1",
+            "targetFieldName": "targetField2"
+          },
+          {
+            "id": "map3",
+            "sources": [
+              { "nodeId": "start", "fieldName": "userId", "fieldIndex": 0 },
+              { "nodeId": "start", "fieldName": "userName", "fieldIndex": 1 }
+            ],
+            "targetNodeId": "mapping1",
+            "targetFieldName": "targetField3",
+            "separator": " "
+          }
+        ]
+      },
+      "width": 180,
+      "height": 119
+    },
+    {
+      "id": "process1",
+      "type": "Process",
+      "position": { "x": 250, "y": 560 },
+      "data": {
+        "label": "Process",
+        "description": "프로세스 처리",
+        "serviceType": "BIZ",
+        "inputs": [
+          { "name": "reqData", "type": "String" }
+        ],
+        "outputs": [
+          { "name": "resData", "type": "String" },
+          { "name": "resultCode", "type": "String" }
+        ]
+      },
+      "width": 180,
+      "height": 119
+    },
+    {
+      "id": "condition1",
+      "type": "IfElse",
+      "position": { "x": 250, "y": 730 },
+      "data": {
+        "label": "IfElse",
+        "description": "조건 분기",
+        "condition": "resultCode == \"SUCCESS\"",
+        "inputs": [],
+        "outputs": []
+      },
+      "width": 180,
+      "height": 119
+    },
+    {
+      "id": "end",
+      "type": "End",
+      "position": { "x": 250, "y": 900 },
+      "data": {
+        "label": "End",
+        "description": "종료 노드",
+        "isEnd": true,
+        "inputs": [
+          { "name": "finalResult", "type": "String" }
+        ],
+        "outputs": []
+      },
+      "width": 180,
+      "height": 119
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-start-variable1",
+      "source": "start",
+      "target": "variable1",
+      "sourceHandle": null,
+      "targetHandle": null
+    },
+    {
+      "id": "e-variable1-mapping1",
+      "source": "variable1",
+      "target": "mapping1",
+      "sourceHandle": null,
+      "targetHandle": null
+    },
+    {
+      "id": "e-mapping1-process1",
+      "source": "mapping1",
+      "target": "process1",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "sources": [
+        { "nodeId": "start", "fieldName": "userId", "fieldIndex": 0 },
+        { "nodeId": "start", "fieldName": "userName", "fieldIndex": 1 }
+      ],
+      "targetNodeId": "mapping1",
+      "targetFieldName": "targetField3",
+      "separator": " "
+    }
+  ]
+},
+"width": 180,
+"height": 119
+},
+{
+"id": "process1",
+"type": "Process",
+"position": { "x": 250, "y": 560 },
+"data": {
+"label": "Process",
+"description": "프로세스 처리",
+"serviceType": "BIZ",
+"inputs": [
+{ "name": "reqData", "type": "String" }
+],
+"outputs": [
+{ "name": "resData", "type": "String" },
+{ "name": "resultCode", "type": "String" }
+]
+},
+"width": 180,
+"height": 119
+},
+{
+"id": "condition1",
+"type": "IfElse",
+"position": { "x": 250, "y": 730 },
+"data": {
+"label": "IfElse",
+"description": "조건 분기",
+"condition": "resultCode == \"SUCCESS\"",
+"inputs": [],
+"outputs": []
+},
+"width": 180,
+"height": 119
+},
+{
+"id": "end",
+"type": "End",
+"position": { "x": 250, "y": 900 },
+"data": {
+"label": "End",
+"description": "종료 노드",
+"isEnd": true,
+"inputs": [
+{ "name": "finalResult", "type": "String" }
+],
+"outputs": []
+},
+"width": 180,
+"height": 119
+}
+],
+"edges": [
+{
+"id": "e-start-variable1",
+"source": "start",
+"target": "variable1",
+"sourceHandle": null,
+"targetHandle": null
+},
+{
+"id": "e-variable1-mapping1",
+"source": "variable1",
+"target": "mapping1",
+"sourceHandle": null,
+"targetHandle": null
+},
+{
+"id": "e-mapping1-process1",
+"source": "mapping1",
+"target": "process1",
+"sourceHandle": null,
+"targetHandle": null
+},
+{
+"id": "e-process1-condition1",
+"source": "process1",
+"target": "condition1",
+"sourceHandle": null,
+"targetHandle": null
+},
+{
+"id": "e-condition1-end",
+"source": "condition1",
+"target": "end",
+"sourceHandle": "true",
+"targetHandle": null
+}
+],
+"version": "1.0",
+"timestamp": 1737043200000
+}
+
+},
+    {
+      "id": "e-process1-condition1",
+      "source": "process1",
+      "target": "condition1",
+      "sourceHandle": null,
+      "targetHandle": null
+    },
+    {
+      "id": "e-condition1-end",
+      "source": "condition1",
+      "target": "end",
+      "sourceHandle": "true",
+      "targetHandle": null
+    }
+  ],
+  "version": "1.0",
+  "timestamp": 1737043200000
+}

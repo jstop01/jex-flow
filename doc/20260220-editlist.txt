@@ -1,0 +1,161 @@
+# 2026-02-20 수정사항
+
+## 1. MappingEditorModal Source/Target 항목 크기 축소
+
+### 수정된 파일:
+1. **src/components/MappingEditorModal.tsx**
+   - Source 패널 필드 항목 padding: `'8px 14px' / '10px 16px'` → `'4px 10px' / '6px 12px'`
+   - Source 패널 필드 항목 borderRadius: `'8px' / '10px'` → `'6px' / '8px'`
+   - Source 패널 필드 항목 marginBottom: `'4px' / '6px'` → `'2px' / '3px'`
+   - Source 패널 필드명 fontSize: `'14px'` → `'12px'`
+   - Source 패널 타입 표시 fontSize: `'12px'` → `'11px'`
+   - Target 패널 필드 항목 padding: `'8px 14px' / '10px 16px'` → `'4px 10px' / '6px 12px'`
+   - Target 패널 필드 항목 borderRadius: `'8px' / '10px'` → `'6px' / '8px'`
+   - Target 패널 필드 항목 marginBottom: `'4px' / '6px'` → `'2px' / '3px'`
+   - Target 패널 필드명 fontSize: `'14px'` → `'12px'`
+   - Target 패널 타입 표시 fontSize: `'12px'` → `'11px'`
+
+### 효과:
+- 한 화면에 표시되는 항목 수 약 50% 향상 (20~28개 → 35~45개)
+- Record/일반 필드 모두 동일하게 적용
+
+---
+
+## 2. MappingEditorModal 중앙 연결선 영역 확장 / 필드 패널 축소
+
+### 수정된 파일:
+1. **src/components/MappingEditorModal.tsx**
+   - Source 패널 width: `42%` → `34%`
+   - Center(연결선) 영역 width: `16%` → `32%`
+   - Target 패널 width: `42%` → `34%`
+
+### 효과:
+- 중앙 연결선 영역이 2배 넓어져 다수의 매핑선이 겹쳐 보이는 현상 개선
+- 좌우 필드 패널은 8%씩 줄어들어 더 간결하게 표시
+
+---
+
+## 3. 매핑 목록 다중 소스 연결 시 변환 버튼 개별 표시
+
+### 수정된 파일:
+1. **src/components/MappingEditorModal.tsx**
+   - `SourceField` 인터페이스에 `transform?: TransformConfig` 추가 (소스별 변환)
+   - `editingSourceIndex` 상태 추가
+   - `openTransformModal(mappingId, sourceIndex?)` - sourceIndex 지원
+   - `closeTransformModal` - editingSourceIndex 초기화
+   - `saveTransformModal` - sourceIndex 있으면 source.transform에 저장, 없으면 mapping.transform
+   - 다중 소스 행마다 변환 배지 + 변환 버튼 추가
+   - 단일 소스일 때만 매핑 레벨 변환 배지/버튼 표시
+
+2. **src/components/MappingListPanel.tsx**
+   - `onOpenTransformModal` prop 타입 변경: `(mappingId, sourceIndex?) => void`
+   - 다중 소스 행마다 변환 배지 + 변환 버튼 추가
+   - 단일 소스일 때만 매핑 레벨 변환 표시
+
+### 동작 방식:
+- **단일 소스**: 기존과 동일하게 매핑 카드 우측에 변환 버튼 1개
+- **다중 소스**: 각 소스 행 오른쪽에 개별 변환 버튼 표시, 설정된 변환은 배지로 표시
+
+---
+
+## 4. 자동매핑 기능 추가
+
+### 수정된 파일:
+1. **src/components/MappingEditorModal.tsx**
+   - `Sparkles` 아이콘 import 추가
+   - `autoMapModalOpen`, `autoMapMode` 상태 추가
+   - `flattenAllFields()` - 확장 상태 무관하게 모든 필드를 flat 배열로 변환하는 헬퍼
+   - `performAutoMapping()` - 선택된 모드로 자동매핑 실행
+   - 헤더 우상단에 "자동매핑" 버튼 추가 (Source/Target 미선택 시 비활성화)
+   - 자동매핑 모드 선택 모달 UI 추가
+
+### 동작 방식:
+- **뎁스별 매핑**: 같은 Depth 레벨 내에서 Field↔Field, Table↔Table 순서 매핑
+  - e.g. Depth 0의 1번째 Field → Depth 0의 1번째 Field
+- **순서별 매핑**: 전체 flat 목록 순서 기준 Field↔Field, Table↔Table 매핑
+  - Depth 무관하게 전체 순서로 매핑
+- 공통: Field→Table, Table→Field 교차 매핑 금지
+- 이미 매핑된 타겟 필드는 건너뜀
+
+---
+
+## 5. MappingEditorModal 초기화 버튼 추가
+
+### 수정된 파일:
+1. **src/components/MappingEditorModal.tsx**
+   - 헤더 우상단 자동매핑 버튼과 X 닫기 버튼 사이에 "초기화" 버튼 추가
+
+### 동작 방식:
+- 매핑이 없을 때 (`mappings.length === 0`): 비활성화 (회색 배경 + 회색 텍스트, cursor: not-allowed)
+- 매핑이 있을 때: 활성화 (연한 빨강 배경 `#fee2e2` + 빨간 텍스트 `#ef4444`)
+- 클릭 시 `setMappings([])` 호출하여 모든 매핑 연결 초기화
+- 호버 시 배경색 `#fecaca`로 변경
+- 아이콘: `Trash2` (기존 import 활용)
+- 별도 확인 다이얼로그 없음 (모달 Cancel로 복구 가능)
+
+---
+
+## 6. 자동매핑 스마트 매핑 모드 추가
+
+### 수정된 파일:
+1. **src/components/MappingEditorModal.tsx**
+   - `autoMapMode` 타입: `'depth' | 'order'` → `'depth' | 'order' | 'smart'`
+   - `normalizeTokens()` 헬퍼 추가: camelCase/PascalCase/snake_case를 소문자 토큰 배열로 분리
+   - `calcNameSimilarity()` 헬퍼 추가: Jaccard 유사도 + 포함 관계 보너스 계산 (0.0~1.0)
+   - `performAutoMapping()` 내 `smart` 분기 추가
+   - 자동매핑 모달에 "스마트 매핑" 라디오 옵션 추가 (보라색 테마 + NEW 뱃지)
+
+### 알고리즘:
+- **토큰 정규화**: 필드명 leaf 부분(마지막 `.` 이후)을 camelCase 분리 + 소문자 변환
+  - e.g. `user_name` → `['user', 'name']`, `userName` → `['user', 'name']`
+- **유사도 계산**: Jaccard(교집합/합집합) + 포함 보너스(짧은 쪽이 긴 쪽에 완전 포함 시 0.6)
+- **매칭**: 타겟 필드마다 가장 높은 점수의 소스 필드 선택 (임계값 0.3 이상)
+- **타입 제약**: Field↔Field, Table↔Table 규칙 동일하게 적용
+- 이미 사용된 소스 필드는 재사용 불가 (1:1 매핑)
+
+---
+
+## 7. JEXQ svc_0002_01 GET/POST/PUT/DELETE/BCS/TRANSACTION 그리드 깨짐 수정
+
+### 수정된 파일:
+1. **JEXQ/SVC_GRP/P_BIZ/src/main/resources/static/js/menu/svc/svc_0002_01.js**
+2. **JEXQ/SVC_GRP/P_BIZ/target/classes/static/js/menu/svc/svc_0002_01.js** (동기화)
+
+### 원인:
+- DEFAULT 탭의 `#ioDomainArea`는 페이지 로드 시 처음부터 visible
+- GET/POST 등 나머지 탭의 `#ioDomainAreaGET` 등은 `studio-hide`(display:none)로 숨겨진 채 jexgrid 초기화
+- `display:none` 상태에서 jexgrid는 컨테이너 width를 0으로 계산 → 컬럼 너비 0 → 그리드 깨짐
+
+### 수정 내용:
+- `_thisInfo.initializedTabs = { DEFAULT: true }` 추가 (탭별 그리드 초기화 추적)
+- `changeDomainTab()`에서 탭이 처음 visible될 때 `reloadAllDomainGrid(comTp, null, true)` 호출
+  - `isBeforeBackup=true`로 기존 데이터를 백업 후 그리드 재렌더링, 데이터 복원
+  - 이후 방문 시에는 호출하지 않음 (불필요한 재렌더링 방지)
+- `init()`에서 `initializedTabs = { DEFAULT: true }` 리셋 (초기화 시 재적용되도록)
+
+---
+
+## 8. While/For/ForEach 컨테이너 노드 버그 수정
+
+### 수정된 파일:
+1. **src/App.tsx**
+   - 컨테이너 생성 시 `containerHeight`: Method=90, While/For/ForEach=120 (타입별 분리)
+   - `toggleGroupExpanded`: `COLLAPSED_HEIGHT` 상수 → 타입별 동적 값 (Method=90, 나머지=120)
+   - 내부 End 노드 초기 y 위치: `containerHeight - 120` (음수 가능) → `50` (고정 양수값)
+
+2. **src/components/ContainerFlowModal.tsx**
+   - `handleSave`에서 `restoredNodes`에 `hidden: true` 추가
+   - ContainerFlowModal 저장 후 내부 노드가 메인 캔버스에 보이는 버그 수정
+
+### 원인:
+- `containerHeight = 90` 변경 후 End 노드 y = `90 - 120 = -30` (음수)
+  → ContainerFlowModal 첫 오픈 시 `isFirstOpen` 조건(`|y차이| < 100`)이 미작동
+  → End 노드가 Start 노드 위에 표시되는 역전 현상
+- ContainerFlowModal 저장 시 `hidden: false`로 저장되어
+  → 축소된 컨테이너 하단에 자식 노드(Start, y=100)가 삐져나와 보임
+- While/For/ForEach는 body를 항상 표시하므로 90px는 너무 작음 → 120px로 증가
+
+### 동작 방식:
+- Method(GroupNode): 축소 시 90px (body 숨김, header만 표시)
+- While/For/ForEach: 축소 시 120px (body 표시, 실루엣 미리보기 공간 확보)
+- ContainerFlowModal 저장 → 내부 노드 `hidden: true` → toggleGroupExpanded로만 표시 제어

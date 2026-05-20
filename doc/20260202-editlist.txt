@@ -1,0 +1,104 @@
+# 2026-02-02 수정사항
+
+## 1. 액션별 서버 승인 시스템 구현 (저장 버튼이 있는 노드 전용)
+
+노드의 **저장 버튼** 클릭 시 서버로 액션 정보를 전송하고,
+승인 응답을 받아야만 실제 데이터가 반영되는 시스템 추가.
+
+### 적용 범위
+- **VariableNode의 저장 버튼**만 해당 (모달, 드롭다운 제외)
+
+### 새로 생성된 파일:
+1. **src/types/approval.ts**
+   - ApprovalActionType: VARIABLE_SAVE만 정의
+   - ApprovalRequest, ApprovalResponse 인터페이스
+   - ApprovalStatus, ApprovalState 타입
+
+2. **src/data/approval-mock.ts**
+   - Mock 응답 생성기 (기본 승인, 800ms 딜레이)
+   - rejectedActions Set으로 특정 액션 거부 테스트 가능
+   - 콘솔 로깅으로 디버깅 지원
+
+3. **src/services/approvalService.ts**
+   - requestApproval() 함수 (processService.ts 패턴 동일)
+   - USE_MOCK = true (프론트엔드만 먼저 구축)
+   - API_BASE_URL: http://10.254.241.251:3001/mock/api/approval
+
+4. **src/hooks/useActionApproval.ts**
+   - withApproval() 래퍼 함수 (핵심 DRY 메커니즘)
+   - approvalState 상태 관리 (idle/pending/approved/rejected/error)
+   - resetApproval() 리셋 함수
+
+5. **src/components/ApprovalOverlay.tsx**
+   - ReactDOM.createPortal로 body에 렌더링
+   - pending: 스피너 + "서버 승인 대기중..."
+   - rejected: 거부 메시지 + 확인 버튼
+   - error: 오류 메시지 + 확인 버튼
+
+### 수정된 파일:
+1. **src/App.tsx**
+   - Import 추가: useActionApproval, ApprovalOverlay, ApprovalActionType
+   - 훅 초기화: useActionApproval()
+   - getApprovalActionType() 헬퍼: Variable 노드의 variableName만 승인 필요
+   - createApprovedOnChange() 헬퍼: 승인 래핑된 onChange 콜백 생성
+   - onChange 주입 7곳 수정 (addNode, paste, JSON import)
+   - JSX에 ApprovalOverlay 컴포넌트 렌더링 추가
+
+---
+
+## 2. 프로젝트 관계 문서화 및 버그 분석
+
+### CLAUDE.md에 추가된 내용:
+
+1. **관련 프로젝트 구조 (JEX 시스템)**
+   - `/Users/ijaeseog/Documents/_JEX_CHECKOUT/` 디렉토리 구조
+   - jex-flow, jexq-flow, JEXQ, JEXQ-FRONT, ARCADIA_ADM 관계
+
+2. **jex-flow 임베딩 구조**
+   - svc_0002_01.html에서 iframe으로 임베딩되는 방식
+   - 7개 탭(DEFAULT, GET, POST, PUT, DELETE, BCS, TRANSACTION)
+   - postMessage 통신 프로토콜 정리
+
+3. **알려진 이슈: 탭 전환 시 노드 위치 이동 버그**
+   - 증상: 탭 전환 시 노드가 점점 아래로 이동
+   - 관련 파일 목록
+   - 조사 필요 항목
+
+### 관련 파일 분석:
+- `JEXQ/SVC_GRP/P_BIZ/src/main/resources/templates/svc/svc_0002_01.html`
+- `JEXQ/SVC_GRP/P_BIZ/src/main/resources/static/js/menu/svc/svc_0002_01.js`
+- `jex-flow/src/pages/MiniMapOnlyPage.tsx`
+- `jex-flow/src/App.tsx`
+
+---
+
+## 3. 탭 전환 시 노드 위치 이동 버그 패치 (시험적)
+
+### 수정된 파일:
+1. **src/pages/MiniMapOnlyPage.tsx** (119-122 라인)
+   - y좌표 정규화 로직 수정
+   - minY가 양수일 때만 조정하도록 변경 (음수면 노드가 아래로 이동하는 현상 방지)
+
+```typescript
+// 변경 전
+const minY = ...;
+y: (node.position?.y ?? 0) - minY,
+
+// 변경 후
+const minY = ...;
+const adjustY = minY > 0 ? minY : 0; // 양수일 때만 조정
+y: (node.position?.y ?? 0) - adjustY,
+```
+
+### 분석 결과:
+- `separateNodesAndGroups()`: position 변경 없음
+- `saveToParent()`: position 변경 없음
+- `handleImportJson()`: position 변경 없음
+
+미니맵 페이지는 표시 전용이라 실제 데이터 저장과 무관할 수 있음.
+문제가 지속되면 추가 조사 필요.
+
+### 생성된 문서:
+- `doc/bug-tab-switch-node-position.md` - 버그 상세 분석 및 조사 방향
+
+---

@@ -1,0 +1,152 @@
+# 2026-02-27 수정사항
+
+## 1. [BUG 1 CRITICAL] ContainerFlowModal - handleIdChangeSave 자식 노드 parentId 미업데이트 수정
+
+### 증상
+- While 노드 안에 Group(Method) 노드 생성 후 Group 노드의 ID 변경
+- While 저장 후 재오픈 시 변경된 ID로 Group 노드가 하나 더 생성됨 (중복)
+
+### 원인
+ContainerFlowModal 내부의 `handleIdChangeSave` 함수가 Method/컨테이너 노드 ID 변경 시:
+1. 해당 노드의 자식 노드들(`parentId === oldId`)의 `parentId`를 `newId`로 업데이트하지 않음
+2. 내부 `${oldId}-start`, `${oldId}-end` 노드의 ID도 업데이트하지 않음
+
+그 결과 자식 노드들이 구 ID를 `parentId`로 가진 채 저장되어, 재오픈 시 `getInitialNodes`의 `filter(n => n.parentId === containerId)` 에 매칭되지 않아 빈 것처럼 보임. 저장 시 기존 Group 노드와 새 Group 노드가 중복 생성됨.
+
+### 수정된 파일
+1. **src/components/ContainerFlowModal.tsx** - `handleIdChangeSave` 함수 (약 760라인)
+   - 컨테이너 노드 타입(Method, While, For, ForEach) 여부 판별 추가
+   - `internalIdMap`으로 `${oldId}-start` -> `${newId}-start`, `${oldId}-end` -> `${newId}-end` 매핑 추가
+   - `setNodes` 내부에서 `parentId === oldId`인 모든 자식 노드의 `parentId`를 `newId`로 업데이트
+   - 내부 start/end 노드의 ID도 함께 업데이트
+   - edge 업데이트 시 내부 start/end 노드 source/target도 갱신
+
+---
+
+## 2. [BUG 2 CRITICAL] App.tsx - onNodesChange 컨테이너 노드 삭제 시 자식 노드 미삭제 수정
+
+### 증상
+- Group 노드 삭제 후 흰 화면 발생
+
+### 원인
+`onNodesChange`에서 ReactFlow 기본 함수인 `applyNodeChanges`를 사용하는데, 이 함수는 컨테이너(Method, While, For, ForEach) 노드 삭제 시 해당 노드의 자식 노드들(`parentId`가 컨테이너 ID인 노드들)을 함께 삭제하지 않음. 결과적으로 dangling `parentId`를 가진 노드들이 남아 ReactFlow 렌더링 오류(흰 화면) 발생.
+
+`deleteSelectedElements`는 선택 기반 삭제에서만 자식 처리를 하고, Delete 키 입력 등 다른 경로의 삭제(`onNodesChange`)는 처리되지 않았음.
+
+### 수정된 파일
+1. **src/App.tsx** - `onNodesChange` 함수 (약 338라인)
+   - `remove` 타입 change 감지 시 제거되는 노드 중 컨테이너 타입 노드 탐색
+   - 해당 컨테이너의 모든 자식 노드(재귀적으로 손자까지) ID 수집
+   - `isInternalStart` / `isInternalEnd` 노드도 `containerId` 기반으로 추가 삭제
+   - 추가 삭제 노드가 있는 경우 `nextNodes`에서 필터링 후 관련 엣지도 제거
+
+---
+
+## 3. [BUG 3 MEDIUM] GroupNode.tsx - 하단 빈 공간 디자인 이슈 수정
+
+### 증상
+- GroupNode의 body 영역 하단에 불필요한 빈 공간 발생
+
+### 원인
+body div에 `overflow-hidden`이 없어 내부 `absolute inset-4` 컨텐츠가 영역 밖으로 나가거나, flex 레이아웃에서 `flex-1`이 최소 크기(minHeight)를 0으로 설정하지 않아 flex 아이템이 올바르게 수축되지 않음.
+
+### 수정된 파일
+1. **src/components/GroupNode.tsx** - body 섹션 div (약 105라인)
+   - body div에 `overflow-hidden` 클래스 추가 (absolute 내용이 영역 밖으로 나가지 않도록)
+   - `style={{ minHeight: 0 }}` 추가 (flex-1 아이템이 올바르게 수축되도록)
+
+---
+## 4. 컨테이너 노드 시각 버그 수정
+
+### 버그 1: GroupNode(Method) 축소 시 빈 body 공간
+- **원인**: Method 노드가 While/For/ForEach와 동일한 200px 초기 높이를 사용
+
+### 버그 2: 축소 상태에서 자식 노드(점)가 보임
+- **원인**: ContainerFlowModal 저장 시 hidden: false인 채로 저장되는 경우 발생
+
+### 수정된 파일
+
+1. **src/App.tsx**
+   - createNode: containerHeight를 type === 'Method' ? 90 : 200으로 타입별 분리
+   - toggleGroupExpanded: COLLAPSED_HEIGHT를 parentNode?.type === 'Method' ? 90 : 200으로 타입별 분리
+   - displayNodes useMemo 추가: 렌더 시 축소된 컨테이너의 자식 노드를 hidden: true로 강제 (기존 broken 노드 대응)
+   - <ReactFlow nodes={displayNodes}> 로 교체
+
+2. **src/components/GroupNode.tsx**
+   - 헤더: 축소 시 rounded-b-[30px], 확장 시 border-b border-[#e2e8f0] 조건부 적용
+   - Body: {data.isExpanded && (...)} 조건부 렌더링으로 축소 시 body 완전 숨김
+
+---
+
+## 5. ContainerFlowModal - handleSave parentId 버그 수정 (서브 캔버스 While/Method 깨짐)
+
+### 증상
+- 서브 캔버스(ContainerFlowModal) 내에서 While/Method 노드는 깨지고, For/ForEach는 정상
+
+### 원인 분석
+`handleSave`에서 `isStartOrEnd` 체크(`n.id.endsWith('-start') || n.id.endsWith('-end')`)를
+`hasNestedParent` 판별에 사용하여, 중첩 컨테이너의 start/end 노드(예: node3-start, node3-end)도
+`isStartOrEnd === true`로 판정되어 올바른 parentId('node3')를 무시하고 외부 containerId로 덮어씀.
+
+결과적으로:
+1. node3-start.parentId = 'node3' → 'node1' (잘못 덮어씌워짐)
+2. getInitialNodes에서 node3-start가 외부 컨테이너의 직접 자식으로 처리됨
+3. processedNodes에서 parentId: undefined, hidden: false 로 변환됨
+4. visibleNodes에 포함되어 서브 캔버스에 떠다니는 gray bars로 노출됨
+
+### 수정된 파일
+1. **src/components/ContainerFlowModal.tsx** - `handleSave` (약 1626라인)
+   - `const isStartOrEnd = ...` 라인 제거
+   - `hasNestedParent` 조건에서 `&& !isStartOrEnd` 제거
+   - 단순히 `n.parentId && n.parentId !== containerId` 조건으로 통일
+   - 이렇게 하면 내부 While의 node3-start(parentId='node3')는 parentId 보존
+   - 현재 컨테이너의 start/end(node1-start, parentId=undefined)는 containerId로 정상 설정
+
+---
+
+## 6. WhileNode - 서브 캔버스 body overflow 수정
+
+### 증상
+ContainerFlowModal 서브 캔버스에서 While 노드의 gray preview bars가 노드 경계 밖으로 넘침
+
+### 원인
+- ContainerFlowModal의 addNode는 While 노드 생성 시 explicit style(width/height)을 설정하지 않음
+- 이 경우 WhileNode body의 flex-1이 height:0으로 계산됨
+- body 안의 absolute inset-4 요소가 0높이 기준으로 렌더링되어 gray bars가 노드 경계 밖으로 overflow
+
+### 수정된 파일
+1. **src/components/WhileNode.tsx** - body 섹션 div
+   - `overflow-hidden` 추가: body 내용이 경계 밖으로 나가지 않도록
+   - `style={{ minHeight: '80px' }}` 추가: explicit height 없을 때도 body가 최소 80px 확보
+
+---
+
+## 7. GroupNode(Method) + ContainerFlowModal - 서브 캔버스 Method 노드 미렌더링 수정
+
+### 증상
+서브 캔버스(ContainerFlowModal)에서 Method 노드 추가 시 노드가 보이지 않거나 너무 작게 렌더링됨
+
+### 원인
+1. ContainerFlowModal `addNode`가 컨테이너 타입 노드에 explicit `style` 미설정
+   - style 없으면 ReactFlow가 노드를 0x0 또는 기본 크기로 렌더링
+   - GroupNode의 `flex-1` body가 height:0으로 계산됨
+2. GroupNode body의 `style={{ minHeight: 0 }}`가 이전에 설정되어 flex-1 완전 수축
+
+### 수정된 파일
+1. **src/components/ContainerFlowModal.tsx** - `addNode` 함수 (약 694라인)
+   - `isGroupLike` 판별 추가: Method/While/For/ForEach 타입
+   - `style: isGroupLike ? { width: 300, height: 200 } : undefined` 추가
+   - `data.isExpanded: false` 초기값 설정
+
+2. **src/components/GroupNode.tsx** - body 섹션 div
+   - `style={{ minHeight: '80px' }}` 설정 (minHeight: 0에서 변경)
+   - body 항상 렌더링 (조건부 숨김 제거)
+   - 축소 상태에서 preview bars 표시 (like WhileNode/ForNode 패턴)
+
+### 검증 결과 (Playwright headless)
+- 메인 캔버스: Method/While/For 모두 167.6px 동일 ✓
+- 서브 캔버스: Method 177.4px, For 177.4px (동일) ✓
+- Ghost start/end 노드: NONE ✓
+
+---
+

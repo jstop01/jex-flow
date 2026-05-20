@@ -1,0 +1,57 @@
+# 2026-01-05 수정사항
+
+## 1. MappingEditorModal.tsx 피그마 소스 동기화
+
+### 수정된 파일:
+1. **src/components/MappingEditorModal.tsx**
+   - 중복 필드 구분용 인덱스 추가 (`sourceFieldIndex`, `targetFieldIndex`)
+   - 기존 매핑에 인덱스가 없으면 자동 마이그레이션 로직 추가
+   - 드래그 중 스크롤 이벤트 감지 기능 추가 (`handleMouseMove`, `handleScroll`)
+   - Ref 콜백 함수 최적화 (`setSourceFieldRef`, `setTargetFieldRef`)
+   - 중복 필드명 감지 및 번호 표시 함수 추가 (`getDisplayName`)
+   - `useEffect` 의존성 배열에 `availableNodes` 추가
+   - 연결선 렌더링 시 필드 인덱스 기반 ref 조회로 변경
+
+### 변경 내용 요약:
+- 같은 이름의 필드가 여러 개 있을 때 각각 구분하여 매핑할 수 있도록 개선
+- 드래그 중 스크롤 시 연결선이 정확하게 따라오도록 수정
+- 기존 매핑 데이터의 하위 호환성 유지 (자동 마이그레이션)
+
+---
+
+## 2. React Flow Framework Design 6 동기화
+
+### 수정된 파일:
+1. **src/components/MappingEditorModal.tsx**
+   - 피그마 소스와 동기화 (코드 스타일 정리)
+
+2. **src/components/ScriptEditModal.tsx**
+   - Java 스크립트 문법 검증 API 연동 추가 (`validateJavaScript`)
+   - 검증 상태 관리 (`isValidating`, `validationError`, `isValidated`)
+   - 문법 테스트 버튼 추가 (`handleTest`)
+   - 검증 통과 후에만 저장 가능하도록 변경
+   - 자동완성 기능 추가 (Java 키워드 + 등록된 변수)
+   - 변수 패널 접기/펼치기 기능 추가 (`isPanelCollapsed`)
+   - 검증 오류 메시지 표시 UI 추가
+
+3. **src/index.css**
+   - 피그마 소스와 동기화 (스타일 업데이트)
+
+---
+
+## 3. ScriptEditModal.tsx 자동완성 토글 및 API 검증 수정
+
+### 수정된 파일:
+1. **src/components/ScriptEditModal.tsx**
+   - 자동완성 ON/OFF 토글 스위치 추가 (`autoCompleteEnabled` 상태)
+   - 토글 스위치 UI: Java Script 라벨 옆에 배치
+   - OFF 상태에서 토글 버튼 색상을 파란색(`#5277f7`)으로 변경하여 가시성 개선
+   - API 엔드포인트 변경: `/api/validate-java-script` → `/api/validateJava`
+   - API 통신 실패 시 `valid: false` 반환하도록 수정 (기존: `valid: true` 오류)
+   - **API 검증 임시 비활성화**: `validateJavaScript` 함수에서 무조건 `{ valid: true }` 반환
+   - TODO 주석 추가: 실제 API 연동 시 주석 해제 필요
+
+### 변경 내용 요약:
+- 자동완성 기능을 토글로 제어 가능 (기본값: OFF)
+- 문법 검증 API가 준비될 때까지 임시로 항상 성공 처리
+- 기존 API 호출 코드는 주석 처리하여 보존
