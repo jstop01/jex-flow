@@ -101,9 +101,9 @@ interface DomainField {
   [key: string]: any;
 }
 
-const convertDomainFieldToIOField = (field: DomainField, index: number): IOField => {
+const convertDomainFieldToIOField = (field: DomainField, index: number, idPrefix: string = 'field'): IOField => {
   return {
-    id: `field_${index}_${Date.now()}`,
+    id: `${idPrefix}_${index}_${Date.now()}`,
     englishName: field.ENG_WRD_SRT || '',
     koreanName: field.KOR_WRD_NM || '',
     length: String(field.LENGTH || ''),
@@ -123,9 +123,47 @@ const convertDomainFieldToIOField = (field: DomainField, index: number): IOField
   };
 };
 
-const convertDomainFieldsToIOFields = (fields: DomainField[]): IOField[] => {
+// RECORD 정의 리스트 → COM_ID/ENG_WRD_SRT 키 맵으로 변환
+// (svc_0002_01에서 getRecordList()로 전달받은 데이터)
+// MSG_INF가 string으로 올 수도 있어서 양쪽 모두 처리
+const buildRecordChildrenMap = (recordData: any[]): Record<string, IOField[]> => {
+  const map: Record<string, IOField[]> = {};
+  if (!Array.isArray(recordData)) return map;
+  recordData.forEach((rec, ri) => {
+    let msgInf: any = rec?.MSG_INF;
+    if (typeof msgInf === 'string') {
+      try { msgInf = JSON.parse(msgInf); } catch { msgInf = []; }
+    }
+    if (!Array.isArray(msgInf)) return;
+    const children: IOField[] = msgInf.map((m: any, ci: number) => ({
+      ...convertDomainFieldToIOField(m, ci, `rec_${ri}`),
+      isRecordChild: true,
+    } as IOField));
+    // RECORD ID 후보: COM_ID, ENG_WRD_SRT, RULE_NM 모두 키로 등록 (조회 측 어느 키로 찾든 매칭)
+    const keys = [rec?.COM_ID, rec?.ENG_WRD_SRT, rec?.RULE_NM].filter(Boolean);
+    keys.forEach((k: string) => { if (!map[k]) map[k] = children; });
+  });
+  return map;
+};
+
+const convertDomainFieldsToIOFields = (
+  fields: DomainField[],
+  recordChildrenMap?: Record<string, IOField[]>
+): IOField[] => {
   if (!Array.isArray(fields)) return [];
-  return fields.map((field, index) => convertDomainFieldToIOField(field, index));
+  return fields.map((field, index) => {
+    const io = convertDomainFieldToIOField(field, index);
+    // RECORD/COMMON 엔트리면 RECORD 정의에서 자식 채우기
+    const fldTp = (field.FLD_TP || '').toUpperCase();
+    if ((fldTp === 'RECORD' || fldTp === 'COMMON') && recordChildrenMap) {
+      const lookupKey = field.RULE_NM || field.ENG_WRD_SRT || '';
+      const children = lookupKey ? recordChildrenMap[lookupKey] : undefined;
+      if (children && children.length > 0) {
+        io.children = children;
+      }
+    }
+    return io;
+  });
 };
 
 // NOTE: Node ID counters removed - IDs are now generated dynamically based on existing nodes
@@ -2210,7 +2248,7 @@ export default function App() {
       }
 
       if (event.data && event.data.type === 'SET_FLOW_DATA') {
-        const { payload, inputData, outputData } = event.data;
+        const { payload, inputData, outputData, recordData } = event.data;
 
         // Flow 데이터 로드
         try {
@@ -2226,11 +2264,13 @@ export default function App() {
 
         // Input/Output 데이터를 Start/End 노드에 세팅
         if (inputData || outputData) {
+          // RECORD 자식 정의 맵 (RECORD/COMMON 엔트리의 children 매핑용)
+          const recordChildrenMap = buildRecordChildrenMap(recordData || []);
           setNodes((nds) => {
             return nds.map((node) => {
               // Start 노드에 inputData 세팅
               if (node.data?.isStart && inputData) {
-                const convertedInputs = convertDomainFieldsToIOFields(inputData);
+                const convertedInputs = convertDomainFieldsToIOFields(inputData, recordChildrenMap);
                 return {
                   ...node,
                   data: {
@@ -2241,7 +2281,7 @@ export default function App() {
               }
               // End 노드에 outputData 세팅
               if (node.data?.isEnd && outputData) {
-                const convertedOutputs = convertDomainFieldsToIOFields(outputData);
+                const convertedOutputs = convertDomainFieldsToIOFields(outputData, recordChildrenMap);
                 return {
                   ...node,
                   data: {
