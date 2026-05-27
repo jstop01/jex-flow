@@ -144,12 +144,12 @@ export const MappingEditorModal = ({
   useEffect(() => {
     if (!sourceNodeId || !isOpen) { setFetchedSourceIO({ inputs: [], outputs: [] }); return; }
     const node = availableNodes.find(n => n.id === sourceNodeId);
-    if (!node) return;
+    if (!node) { setFetchedSourceIO({ inputs: [], outputs: [] }); return; }
     // 이미 outputs가 있으면 조회 불필요
     if (node.outputs && node.outputs.length > 0) { setFetchedSourceIO({ inputs: [], outputs: [] }); return; }
-    // IDO가 있는 노드만 조회
+    // IDO가 있는 노드만 조회 (IDO 없으면 이전 노드 stale 데이터 잔존 방지 위해 리셋)
     const componentId = node.ido?.componentId;
-    if (!componentId) return;
+    if (!componentId) { setFetchedSourceIO({ inputs: [], outputs: [] }); return; }
     fetchComponentIO(componentId, node.ido?.type || 'IDO')
       .then(result => {
         const toFieldInfo = (f: any): FieldInfo => ({
@@ -169,10 +169,11 @@ export const MappingEditorModal = ({
   useEffect(() => {
     if (!targetNodeId || !isOpen) { setFetchedTargetIO({ inputs: [], outputs: [] }); return; }
     const node = availableNodes.find(n => n.id === targetNodeId);
-    if (!node) return;
+    if (!node) { setFetchedTargetIO({ inputs: [], outputs: [] }); return; }
     if (node.inputs && node.inputs.length > 0) { setFetchedTargetIO({ inputs: [], outputs: [] }); return; }
+    // IDO 없으면 이전 노드 stale 데이터 잔존 방지 위해 리셋
     const componentId = node.ido?.componentId;
-    if (!componentId) return;
+    if (!componentId) { setFetchedTargetIO({ inputs: [], outputs: [] }); return; }
     fetchComponentIO(componentId, node.ido?.type || 'IDO')
       .then(result => {
         const toFieldInfo = (f: any): FieldInfo => ({

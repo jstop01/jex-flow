@@ -946,6 +946,16 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
 
   // 노드 더블클릭 핸들러 (IfElse, Script, Error, Mapping, 루프 노드용)
   const onNodeDoubleClick = useCallback((event: React.MouseEvent, node: Node) => {
+    // Variable 노드 더블클릭 시 expression 편집 모달 (메인 캔버스와 동일하게 ConditionEditModal 재사용)
+    if (node.type === 'Variable') {
+      setConditionModal({
+        isOpen: true,
+        nodeId: node.id,
+        expression: node.data.expression || '',
+      });
+      return;
+    }
+
     // IfElse 노드 더블클릭 시 편집 모달 열기
     if (node.type === 'IfElse') {
       setConditionModal({
@@ -1331,74 +1341,49 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
       {nodeContextMenu && (
         <div
           style={{ top: nodeContextMenu.top, left: nodeContextMenu.left }}
-          className="fixed z-50 w-48 bg-white rounded-lg shadow-xl border border-slate-200 py-2"
+          className="fixed z-50 w-48 bg-white rounded-lg shadow-xl border border-slate-200 py-1"
         >
-          <div className="px-3 py-1.5 text-xs font-medium text-slate-400">
-            노드 설정
-          </div>
           {(() => {
             const node = nodes.find(n => n.id === nodeContextMenu.nodeId);
-            const isEndNode = node?.data?.isEnd || node?.data?.isInternalEnd;
+            // 메인 캔버스 ContextMenu와 동일 기준으로 통일:
+            //  - 입력 매핑 (Start/Container 제외, End 포함)
+            //  - ID 변경 (항상)
+            //  노드 편집은 더블클릭, 노드 삭제는 Delete/Backspace 키로 대체 (메인과 동일)
             const isStartNode = node?.data?.isStart || node?.data?.isInternalStart;
             const isContainer = ['Method', 'While', 'For', 'ForEach'].includes(node?.type || '');
-            const editableTypes = ['IfElse', 'Script', 'Error', 'Mapping', 'For', 'ForEach', 'While'];
 
             return (
               <>
-                {/* Edit 버튼 - 특정 노드 타입용 (End 노드 제외) */}
-                {!isEndNode && node && editableTypes.includes(node.type || '') && (
-                  <button
-                    onClick={() => {
-                      openNodeEditorRef.current(nodeContextMenu.nodeId);
-                      setNodeContextMenu(null);
-                    }}
-                    className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
-                  >
-                    <Edit3 size={16} className="text-[#5277f7]" />
-                    <span>노드 편집</span>
-                  </button>
-                )}
-
                 {/* 입력 매핑 - Start/Container 제외 */}
                 {node && !isStartNode && !isContainer && (
-                  <button
-                    onClick={() => {
-                      setMappingEditorModal({
-                        isOpen: true,
-                        nodeId: nodeContextMenu.nodeId,
-                        mappings: node.data?.mappings || [],
-                        fixedTargetNodeId: nodeContextMenu.nodeId,
-                      });
-                      setNodeContextMenu(null);
-                    }}
-                    className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
-                  >
-                    <ArrowDownToLine size={16} className="text-emerald-500" />
-                    <span>입력 매핑</span>
-                  </button>
-                )}
-
-                {/* Input/Output 설정 버튼 제거 — 더블클릭으로 readonly 모달이 열리도록 변경됨 */}
-
-                {/* ID 변경 / 삭제 - End 노드 제외 */}
-                {!isEndNode && (
                   <>
                     <button
-                      onClick={() => handleChangeId(nodeContextMenu.nodeId)}
-                      className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
+                      onClick={() => {
+                        setMappingEditorModal({
+                          isOpen: true,
+                          nodeId: nodeContextMenu.nodeId,
+                          mappings: node.data?.mappings || [],
+                          fixedTargetNodeId: nodeContextMenu.nodeId,
+                        });
+                        setNodeContextMenu(null);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
                     >
-                      <Edit3 size={16} className="text-purple-500" />
-                      <span>ID 변경</span>
+                      <ArrowDownToLine size={14} className="text-emerald-500" />
+                      <span>입력 매핑</span>
                     </button>
-                    <button
-                      onClick={() => handleDeleteNode(nodeContextMenu.nodeId)}
-                      className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors"
-                    >
-                      <Trash2 size={16} />
-                      <span>노드 삭제</span>
-                    </button>
+                    <div className="border-t border-slate-100 my-1" />
                   </>
                 )}
+
+                {/* ID 변경 */}
+                <button
+                  onClick={() => handleChangeId(nodeContextMenu.nodeId)}
+                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                >
+                  <Edit3 size={14} className="text-slate-400" />
+                  <span>ID 변경</span>
+                </button>
               </>
             );
           })()}

@@ -2556,6 +2556,7 @@ export default function App() {
       />
 
       <MappingEditorModal
+        key={`mapping-${mappingEditorModal.nodeId || 'none'}`}
         isOpen={mappingEditorModal.isOpen}
         onClose={() => setMappingEditorModal({ isOpen: false, nodeId: null, mappings: [] })}
         nodeId={mappingEditorModal.nodeId}

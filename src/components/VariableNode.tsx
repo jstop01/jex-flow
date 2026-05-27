@@ -72,19 +72,14 @@ export const VariableNode = memo(({ id, data, selected }: NodeProps) => {
         <div>
           <label className="text-[9px] text-slate-500 font-bold mb-1 block">name</label>
           <input
-            className={`nodrag w-full px-2 py-1.5 text-xs border rounded-md focus:outline-none focus:ring-1 bg-slate-50 focus:bg-white transition-all font-mono ${
+            className={`nodrag nopan w-full px-2 py-1.5 text-xs border rounded-md focus:outline-none focus:ring-1 bg-slate-50 focus:bg-white transition-all font-mono ${
               validationError
                 ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
                 : 'border-slate-200 focus:border-emerald-500 focus:ring-emerald-100'
             }`}
             placeholder="myVar"
             value={localName}
-            onChange={(evt) => {
-              const val = evt.target.value;
-              if (!val || /^[a-zA-Z0-9_.$]*$/.test(val)) {
-                setLocalName(val);
-              }
-            }}
+            onChange={(evt) => setLocalName(evt.target.value)}
             onKeyDown={handleKeyDown}
           />
           {validationError && (
