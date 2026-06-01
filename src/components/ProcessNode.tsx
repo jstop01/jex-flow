@@ -415,6 +415,7 @@ export const ProcessNode = memo(({ id, data, selected }: NodeProps) => {
           onSave={handleInputModalSave}
           serviceType={pendingServiceType}
           inputs={serviceTypeInputFields}
+          initialValues={data.serviceTypeInput}
         />
       )}
     </div>

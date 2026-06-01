@@ -21,6 +21,8 @@ interface ServiceTypeInputModalProps {
   onSave: (values: Record<string, any>) => void;
   serviceType: { value: string; text: string };
   inputs: InputField[];
+  // 이전에 저장된 값(없으면 inputs의 defaultValue 사용) — 톱니바퀴 재진입 시 기존 값 표시
+  initialValues?: Record<string, any>;
 }
 
 export const ServiceTypeInputModal = ({
@@ -29,24 +31,27 @@ export const ServiceTypeInputModal = ({
   onSave,
   serviceType,
   inputs,
+  initialValues,
 }: ServiceTypeInputModalProps) => {
   const [values, setValues] = useState<Record<string, any>>({});
 
-  // Initialize values with defaults
+  // Initialize values: initialValues(이전 저장값) 우선, 없으면 inputs의 defaultValue
   useEffect(() => {
-    const initialValues: Record<string, any> = {};
+    const merged: Record<string, any> = {};
     inputs.forEach((input) => {
-      if (input.id && input.defaultValue !== undefined) {
+      if (!input.id) return;
+      if (initialValues && initialValues[input.id] !== undefined) {
+        merged[input.id] = initialValues[input.id];
+      } else if (input.defaultValue !== undefined) {
         if (input.type === 'CHECK') {
-          // For checkboxes, defaultValue could be comma-separated
-          initialValues[input.id] = input.defaultValue.split(',').filter(Boolean);
+          merged[input.id] = input.defaultValue.split(',').filter(Boolean);
         } else {
-          initialValues[input.id] = input.defaultValue;
+          merged[input.id] = input.defaultValue;
         }
       }
     });
-    setValues(initialValues);
-  }, [inputs]);
+    setValues(merged);
+  }, [inputs, initialValues]);
 
   if (!isOpen) return null;
 

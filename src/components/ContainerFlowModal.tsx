@@ -718,8 +718,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
   // 노드 우클릭 컨텍스트 메뉴 핸들러
   const onNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
     event.preventDefault();
-    // Start 노드는 컨텍스트 메뉴 제외 (End 노드는 IO 설정 허용)
-    if (node.data?.isStart) return;
+    // 메인 캔버스와 동일하게 Start 노드도 컨텍스트 메뉴 노출 (ID 변경 가능)
 
     setNodeContextMenu({
       top: event.clientY,
@@ -1011,8 +1010,8 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
       return;
     }
 
-    // 자체 더블클릭 액션이 없는 노드 → readonly IO 설정 모달 (수정 불가)
-    setIoModal({ isOpen: true, nodeId: node.id, readOnly: true });
+    // 자체 더블클릭 액션이 없는 노드(Process/CallMethod/Switch/CallDO 등)는 아무 동작 없음
+    // (입출력 설정 모달은 더 이상 사용하지 않음)
   }, []);
 
 
@@ -1054,32 +1053,80 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
     setMappingEditorModal({ isOpen: false, nodeId: null, mappings: [] });
   }, [mappingEditorModal.nodeId, updateNodeData]);
 
-  // 현재 컨테이너 내부 노드들만 AvailableNodeInfo 형식으로 변환 (바로 한 단계 위 노드만)
-  // Start/End 노드도 포함 (소스: Start의 outputs, 타겟: End의 inputs)
+  // 매핑 모달용 노드 목록: 서브 컨테이너 내부 + 외부(컨테이너 후손이 아닌) 노드 모두 포함
+  // (외부 Variable 등 상위 스코프의 노드도 매핑 소스로 사용 가능하도록 노출)
   const currentContainerNodes = useMemo(() => {
-    // 현재 컨테이너 내부 노드들 (parentId가 없는 것만)
-    return nodes
-      .filter(n => !n.parentId)
-      .map(n => {
-        // Start 노드인 경우 type 지정
-        const isStartNode = n.id.endsWith('-start');
-        // End 노드인 경우 type 지정
-        const isEndNode = n.id.endsWith('-end');
+    // 노드를 AvailableNodeInfo로 변환 (App.tsx 메인 매핑 변환 로직과 동일하게:
+    //  Start의 inputs를 outputs로 미러, End의 outputs를 inputs로 미러,
+    //  Variable의 variableName을 outputs 필드로 노출)
+    const convertNode = (n: Node) => {
+      const isStartNode = n.type === 'Start' || n.data?.isStart || n.data?.isInternalStart;
+      const isEndNode = n.type === 'End' || n.data?.isEnd || n.data?.isInternalEnd;
+      const nodeData = n.data as any;
+      const nodeType = isStartNode ? 'Start' : isEndNode ? 'End' : (n.type || 'unknown');
+      let finalInputs = nodeData?.inputs || [];
+      let finalOutputs = nodeData?.outputs || [];
+      if (nodeType === 'Start' && finalOutputs.length === 0 && finalInputs.length > 0) {
+        finalOutputs = finalInputs;
+      }
+      if (nodeType === 'End' && finalInputs.length === 0 && finalOutputs.length > 0) {
+        finalInputs = finalOutputs;
+      }
+      if (nodeType === 'Variable' && nodeData?.variableName) {
+        finalOutputs = [{ name: nodeData.variableName, fieldType: 'String' }];
+      }
+      return {
+        id: n.id,
+        label: n.id,
+        type: nodeType,
+        inputs: finalInputs,
+        outputs: finalOutputs,
+        ido: nodeData?.ido ? {
+          componentId: nodeData.ido.componentId || '',
+          type: nodeData.ido.type || 'IMO',
+        } : undefined,
+        parentId: n.parentId, // upstream traversal에서 컨테이너 chain 추적용
+      };
+    };
 
-        const nodeData = n.data as any;
-        return {
-          id: n.id,
-          label: n.id,
-          type: isStartNode ? 'Start' : isEndNode ? 'End' : (n.type || 'unknown'),
-          inputs: nodeData?.inputs || [],
-          outputs: nodeData?.outputs || [],
-          ido: nodeData?.ido ? {
-            componentId: nodeData.ido.componentId || '',
-            type: nodeData.ido.type || 'IMO',
-          } : undefined,
-        };
-      });
-  }, [nodes]);
+    // 1) 서브 컨테이너 내부 노드 (parentId 없음 — 모달에서 직접 자식)
+    const internal = nodes.filter(n => !n.parentId).map(convertNode);
+    const internalIds = new Set(internal.map(n => n.id));
+
+    // 2) 외부 노드: propsInitialNodes에서 현재 containerId의 후손이 아닌 노드
+    //    - internal과의 중복 제외
+    //    - 컨테이너 자체, 내부 start/end 제외
+    const isDescendantOfCurrent = (nodeId: string): boolean => {
+      let cur: Node | undefined = propsInitialNodes.find(p => p.id === nodeId);
+      const seen = new Set<string>();
+      while (cur?.parentId && !seen.has(cur.id)) {
+        seen.add(cur.id);
+        if (cur.parentId === containerId) return true;
+        cur = propsInitialNodes.find(p => p.id === cur!.parentId);
+      }
+      return false;
+    };
+    const external = propsInitialNodes
+      .filter(n =>
+        !internalIds.has(n.id) &&
+        n.id !== containerId &&
+        n.id !== `${containerId}-start` &&
+        n.id !== `${containerId}-end` &&
+        !isDescendantOfCurrent(n.id)
+      )
+      .map(convertNode);
+
+    return [...internal, ...external];
+  }, [nodes, propsInitialNodes, containerId]);
+
+  // 매핑 모달에 전달할 edges: 서브 내부 edges + 외부 edges (upstream traversal 확장용)
+  const mappingEdges = useMemo(() => {
+    const internalNodeIds = new Set(nodes.filter(n => !n.parentId).map(n => n.id));
+    const externalEdges = propsInitialEdges.filter(e =>
+      !internalNodeIds.has(e.source) && !internalNodeIds.has(e.target)
+    );
+    return [...edges, ...externalEdges];
+  }, [edges, propsInitialEdges, nodes]);
 
   // ReactFlow에 표시할 노드 필터링 (중첩 컨테이너의 자식 노드는 숨김)
   // parentId가 없는 노드만 현재 컨테이너에 직접 속하는 노드
@@ -1349,13 +1396,14 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
             //  - 입력 매핑 (Start/Container 제외, End 포함)
             //  - ID 변경 (항상)
             //  노드 편집은 더블클릭, 노드 삭제는 Delete/Backspace 키로 대체 (메인과 동일)
-            const isStartNode = node?.data?.isStart || node?.data?.isInternalStart;
-            const isContainer = ['Method', 'While', 'For', 'ForEach'].includes(node?.type || '');
+            // 입력 매핑 메뉴 노출 화이트리스트: CallDO 와 End 노드(내부 End 포함)만
+            const isEndNode = node?.type === 'End' || node?.data?.isEnd || node?.data?.isInternalEnd;
+            const isMappingEligible = node?.type === 'CallDO' || isEndNode;
 
             return (
               <>
-                {/* 입력 매핑 - Start/Container 제외 */}
-                {node && !isStartNode && !isContainer && (
+                {/* 입력 매핑 - CallDO/End 만 노출 */}
+                {node && isMappingEligible && (
                   <>
                     <button
                       onClick={() => {
@@ -1496,7 +1544,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
         nodeId={mappingEditorModal.nodeId}
         initialMappings={mappingEditorModal.mappings}
         availableNodes={currentContainerNodes}
-        edges={edges}
+        edges={mappingEdges}
         onSave={handleMappingEditorSave}
         fixedTargetNodeId={mappingEditorModal.fixedTargetNodeId}
       />

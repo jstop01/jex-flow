@@ -15,8 +15,8 @@ interface ContextMenuProps {
 
 export const ContextMenu = ({ top, left, nodeId, nodeType, onClose, onIOSetting, onChangeId, onInputMapping, onOutputMapping }: ContextMenuProps) => {
   const menuRef = useRef<HTMLDivElement>(null);
-  const isStart = nodeType === 'Start';
-  const isContainer = nodeType === 'Method' || nodeType === 'While' || nodeType === 'For' || nodeType === 'ForEach';
+  // 입력 매핑 메뉴 노출 화이트리스트: CallDO 와 End 노드만 (그 외 노드들은 매핑 대상 아님)
+  const isMappingEligible = nodeType === 'CallDO' || nodeType === 'End';
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -37,7 +37,7 @@ export const ContextMenu = ({ top, left, nodeId, nodeType, onClose, onIOSetting,
       style={{ top, left }}
       className="absolute z-50 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 animate-in fade-in zoom-in duration-100 origin-top-left"
     >
-      {!isStart && !isContainer && (
+      {isMappingEligible && (
         <>
           <button
             onClick={() => {
