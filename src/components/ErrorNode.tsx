@@ -22,9 +22,9 @@ export const ErrorNode = memo(({ id, data, selected }: NodeProps) => {
         {/* <AlertCircle className="w-5 h-5 text-red-500 mb-1" /> */}
 
         <div className="text-sm font-medium text-red-600 text-center break-words px-1">
-            {data.codeName || data.label || '에러 발생'}
+            {id}
         </div>
-        <div className="text-red-300 text-[10px] font-mono">nodeId: {id}</div>
+        <div className="text-red-300 text-[10px] font-mono">type: Error</div>
         {data.code && (
             <div className="text-[10px] text-red-400 font-mono">
                 {data.code}

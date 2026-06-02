@@ -62,8 +62,8 @@ export const VariableNode = memo(({ id, data, selected }: NodeProps) => {
           <Database size={14} />
         </div>
         <div>
-          <span className="font-bold text-emerald-900 text-xs">Variable</span>
-          <div className="text-slate-400 text-[10px] font-mono">nodeId: {id}</div>
+          <span className="font-bold text-emerald-900 text-xs">{id}</span>
+          <div className="text-slate-400 text-[10px] font-mono">type: Variable</div>
         </div>
       </div>
 

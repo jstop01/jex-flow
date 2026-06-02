@@ -187,8 +187,8 @@ export const ProcessNode = memo(({ id, data, selected }: NodeProps) => {
           {isInternalStart ? <Play size={18} /> : isInternalEnd ? <Square size={18} /> : <Workflow size={18} />}
         </div>
         <div>
-          <div className="text-slate-900 font-bold text-sm leading-tight">{data.label}</div>
-          <div className="text-slate-400 text-[10px] font-mono">nodeId: {id}</div>
+          <div className="text-slate-900 font-bold text-sm leading-tight">{id}</div>
+          <div className="text-slate-400 text-[10px] font-mono">type: {data.isStart || data.isInternalStart ? 'Start' : (data.isEnd || data.isInternalEnd ? 'End' : 'Process')}</div>
         </div>
       </div>
 

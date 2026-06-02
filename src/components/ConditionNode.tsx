@@ -45,8 +45,8 @@ export const ConditionNode = memo(({ id, data, selected }: NodeProps) => {
                 <Split size={18} />
             </div>
             <div>
-              <div className="text-sm font-bold text-slate-700">IfElse</div>
-              <div className="text-slate-400 text-[10px] font-mono">nodeId: {id}</div>
+              <div className="text-sm font-bold text-slate-700">{id}</div>
+              <div className="text-slate-400 text-[10px] font-mono">type: IfElse</div>
             </div>
         </div>
 

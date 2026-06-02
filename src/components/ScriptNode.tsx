@@ -29,8 +29,8 @@ export const ScriptNode = memo(({ id, data, selected }: NodeProps) => {
           <Code size={16} />
         </div>
         <div>
-          <div className="font-bold text-slate-800 text-sm">{data.label || 'Script'}</div>
-          <div className="text-slate-400 text-[10px] font-mono">nodeId: {id}</div>
+          <div className="font-bold text-slate-800 text-sm">{id}</div>
+          <div className="text-slate-400 text-[10px] font-mono">type: Script</div>
         </div>
       </div>
 

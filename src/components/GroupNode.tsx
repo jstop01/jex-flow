@@ -89,10 +89,8 @@ export const GroupNode = memo(({ data, selected, id }: NodeProps) => {
             <FolderOpen size={24} />
           </div>
           <div className="flex flex-col">
-             <span className="text-lg font-bold text-slate-800 tracking-tight">
-               {data.label || 'Method'}
-             </span>
-             <span className="text-slate-400 text-[10px] font-mono">nodeId: {id}</span>
+             <span className="text-lg font-bold text-slate-800 tracking-tight">{id}</span>
+             <span className="text-slate-400 text-[10px] font-mono">type: Method</span>
           </div>
         </div>
 

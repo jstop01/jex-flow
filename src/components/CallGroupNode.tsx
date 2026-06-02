@@ -79,8 +79,8 @@ export const CallGroupNode = memo(({ id, data, selected }: NodeProps) => {
             <FolderOpen size={18} />
           </div>
           <div>
-            <div className="text-slate-900 font-bold text-sm leading-tight">CallMethod</div>
-            <div className="text-slate-400 text-[10px] font-mono">nodeId: {id}</div>
+            <div className="text-slate-900 font-bold text-sm leading-tight">{id}</div>
+            <div className="text-slate-400 text-[10px] font-mono">type: CallMethod</div>
           </div>
         </div>
 
@@ -133,8 +133,8 @@ export const CallGroupNode = memo(({ id, data, selected }: NodeProps) => {
           <Layers size={18} />
         </div>
         <div>
-          <div className="text-slate-900 font-bold text-sm">CallMethod</div>
-          <div className="text-slate-400 text-[10px] font-mono">nodeId: {id}</div>
+          <div className="text-slate-900 font-bold text-sm">{id}</div>
+          <div className="text-slate-400 text-[10px] font-mono">type: CallMethod</div>
         </div>
       </div>
 

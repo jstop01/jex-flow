@@ -60,8 +60,8 @@ export const WhileNode = memo(({ id, data, selected }: NodeProps) => {
             <Repeat size={24} />
           </div>
           <div className="flex flex-col flex-1 min-w-0">
-            <span className="text-sm font-bold text-amber-700 uppercase tracking-wider">While</span>
-            <span className="text-slate-400 text-[10px] font-mono">nodeId: {id}</span>
+            <span className="text-lg font-bold text-slate-800 tracking-tight truncate">{id}</span>
+            <span className="text-slate-400 text-[10px] font-mono">type: While</span>
           </div>
         </div>
 

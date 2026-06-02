@@ -47,8 +47,8 @@ export const SwitchNode = memo(({ id, data, selected }: NodeProps) => {
           <GitMerge size={16} />
         </div>
         <div>
-          <div className="font-bold text-slate-800 text-sm">Switch</div>
-          <div className="text-slate-400 text-[10px] font-mono">nodeId: {id}</div>
+          <div className="font-bold text-slate-800 text-sm">{id}</div>
+          <div className="text-slate-400 text-[10px] font-mono">type: Switch</div>
         </div>
       </div>
 

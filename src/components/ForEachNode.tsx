@@ -108,8 +108,8 @@ export const ForEachNode = memo(({ data, selected, id }: NodeProps) => {
             <Repeat2 size={24} />
           </div>
           <div className="flex flex-col flex-1 min-w-0">
-             <span className="text-sm font-bold text-lime-700 uppercase tracking-wider">ForEach</span>
-             <span className="text-slate-400 text-[10px] font-mono">nodeId: {id}</span>
+             <span className="text-lg font-bold text-slate-800 tracking-tight truncate">{id}</span>
+             <span className="text-slate-400 text-[10px] font-mono">type: ForEach</span>
           </div>
         </div>
 

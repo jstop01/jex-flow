@@ -77,8 +77,8 @@ export const DONode = memo(({ id, data, selected }: NodeProps) => {
             <GitBranch size={18} />
           </div>
           <div>
-            <div className="text-slate-900 font-bold text-sm">CallDO</div>
-            <div className="text-slate-400 text-[10px] font-mono">nodeId: {id}</div>
+            <div className="text-slate-900 font-bold text-sm">{id}</div>
+            <div className="text-slate-400 text-[10px] font-mono">type: CallDO</div>
           </div>
         </div>
 
