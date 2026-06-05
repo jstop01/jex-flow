@@ -20,6 +20,7 @@ import {
   Play,
   Code,
   Square,
+  ArrowRightLeft,
 } from 'lucide-react';
 
 interface PaneContextMenuProps {
@@ -51,6 +52,7 @@ const menuItems = [
   { type: 'CallDO', label: 'CallDO', icon: Layers, color: 'text-orange-500' },
   { type: 'Method', label: 'method', icon: FolderOpen, color: 'text-teal-500' },
   { type: 'CallMethod', label: 'CallMethod', icon: Play, color: 'text-rose-500' },
+  { type: 'Mapping', label: 'Mapping', icon: ArrowRightLeft, color: 'text-violet-500' },
   { type: 'Error', label: 'Error', icon: AlertCircle, color: 'text-red-500' },
   { type: 'End', label: 'End', icon: Square, color: 'text-red-600' },
 ];

@@ -13,7 +13,7 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { X, Save, FolderOpen, Repeat, Repeat2, RotateCw, Workflow, Database, Split, GitMerge, AlertCircle, Layers, Phone, Code, ChevronDown, Settings, Trash2, Edit3, Undo2, Redo2, ArrowDownToLine } from 'lucide-react';
+import { X, Save, FolderOpen, Repeat, Repeat2, RotateCw, Workflow, Database, Split, GitMerge, AlertCircle, Layers, Phone, Code, ChevronDown, Settings, Trash2, Edit3, Undo2, Redo2, ArrowDownToLine, ArrowRightLeft } from 'lucide-react';
 import { IOSettingModal } from './IOSettingModal';
 import { IDOSearchModal, ComponentItem } from './IDOSearchModal';
 import { fetchComponentIO } from '../services/componentService';
@@ -85,6 +85,7 @@ const nodeMenuItems = [
   { type: 'Switch', label: 'Switch', icon: GitMerge, color: 'text-indigo-500' },
   { type: 'CallDO', label: 'CallDO', icon: Layers, color: 'text-orange-500' },
   { type: 'CallMethod', label: 'CallMethod', icon: Phone, color: 'text-teal-500' },
+  { type: 'Mapping', label: 'Mapping', icon: ArrowRightLeft, color: 'text-violet-500' },
   { type: 'Error', label: 'Error', icon: AlertCircle, color: 'text-red-500' },
 ];
 
