@@ -5,6 +5,7 @@ import {
   Split,
   GitMerge,
   AlertCircle,
+  Ban,
   Repeat,
   Repeat2,
   Layers,
@@ -46,7 +47,7 @@ const menuItems = [
   { type: 'Script', label: 'Script', icon: Code, color: 'text-violet-500' },
   { type: 'IfElse', label: 'IfElse', icon: Split, color: 'text-amber-500' },
   { type: 'Switch', label: 'Switch', icon: GitMerge, color: 'text-indigo-500' },
-  { type: 'While', label: 'while', icon: Repeat, color: 'text-cyan-500' },
+  // { type: 'While', label: 'while', icon: Repeat, color: 'text-cyan-500' }, // 숨김 처리 (사용자 요청 — 당분간 불필요)
   { type: 'For', label: 'for', icon: RotateCw, color: 'text-purple-500' },
   { type: 'ForEach', label: 'foreach', icon: Repeat2, color: 'text-fuchsia-500' },
   { type: 'CallDO', label: 'CallDO', icon: Layers, color: 'text-orange-500' },
@@ -54,6 +55,7 @@ const menuItems = [
   { type: 'CallMethod', label: 'CallMethod', icon: Play, color: 'text-rose-500' },
   { type: 'Mapping', label: 'Mapping', icon: ArrowRightLeft, color: 'text-violet-500' },
   { type: 'Error', label: 'Error', icon: AlertCircle, color: 'text-red-500' },
+  // { type: 'Break', label: 'Break', icon: Ban, color: 'text-amber-500' }, // Break는 for/foreach 내부 우클릭에서만 노출 (ContainerFlowModal에서 처리)
   { type: 'End', label: 'End', icon: Square, color: 'text-red-600' },
 ];
 

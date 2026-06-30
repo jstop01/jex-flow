@@ -15,6 +15,7 @@ const SAVE_DATA_FIELDS: Record<string, string[]> = {
   IfElse:    ['label', 'expression', 'mappings'],
   Switch:    ['label', 'expression', 'cases', 'mappings'],
   Error:     ['label', 'code', 'codeName', 'description', 'mappings'],
+  Break:     ['label', 'description'],
   Script:    ['label', 'scriptType', 'scriptContent', 'variableName', 'mappings'],
   Method:    ['label', 'isExpanded', 'hasChildren', 'internalNodesPreview'],
   While:     ['label', 'expression', 'isExpanded', 'hasChildren', 'internalNodesPreview'],

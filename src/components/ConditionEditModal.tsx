@@ -7,6 +7,10 @@ interface ConditionEditModalProps {
   nodeId: string | null;
   initialExpression: string;
   onSave: (expression: string) => void;
+  title?: string;
+  subtitle?: string;
+  fieldLabel?: string;
+  placeholder?: string;
 }
 
 export const ConditionEditModal = ({
@@ -15,6 +19,10 @@ export const ConditionEditModal = ({
   nodeId,
   initialExpression,
   onSave,
+  title,
+  subtitle,
+  fieldLabel,
+  placeholder,
 }: ConditionEditModalProps) => {
   const [expression, setExpression] = useState(initialExpression);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -56,8 +64,8 @@ export const ConditionEditModal = ({
               <Split size={22} className="text-[#5277f7]" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-800">if expression 수정</h2>
-              <p className="text-xs text-slate-500 mt-0.5">expression을 입력하세요</p>
+              <h2 className="text-lg font-bold text-slate-800">{title ?? 'if expression 수정'}</h2>
+              <p className="text-xs text-slate-500 mt-0.5">{subtitle ?? 'expression을 입력하세요'}</p>
             </div>
           </div>
           <button
@@ -79,7 +87,7 @@ export const ConditionEditModal = ({
           {/* Expression Input */}
           <div>
             <label className="text-xs text-slate-500 font-bold mb-2 block">
-              expression
+              {fieldLabel ?? 'expression'}
             </label>
             <textarea
               ref={inputRef}
@@ -87,7 +95,7 @@ export const ConditionEditModal = ({
               onChange={(e) => setExpression(e.target.value)}
               onKeyDown={handleKeyDown}
               className="w-full h-32 px-4 py-3 rounded-lg border-2 border-slate-200 focus:outline-none focus:border-[#5277f7] focus:shadow-[0_0_0_3px_rgba(82,119,247,0.15)] bg-slate-50 focus:bg-white transition-all font-mono text-sm resize-none placeholder:text-slate-400"
-              placeholder="예: x > 10 && y < 20"
+              placeholder={placeholder ?? '예: x > 10 && y < 20'}
             />
             <p className="mt-2 text-xs text-slate-400">
               Shift + Enter로 줄바꿈, Enter로 저장

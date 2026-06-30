@@ -87,6 +87,10 @@ export const MappingEditorModal = ({
   const [targetNodeId, setTargetNodeId] = useState<string>('');
   const [sourceDropdownOpen, setSourceDropdownOpen] = useState(false);
   const [targetDropdownOpen, setTargetDropdownOpen] = useState(false);
+  // RECORD 범위 좁히기: 드롭다운에서 RECORD 항목 선택 시 해당 RECORD 필드명 보관
+  // 있으면 필드 패널을 해당 RECORD children만 보여줌. null이면 기존 전체 표시.
+  const [sourceRecordPath, setSourceRecordPath] = useState<string | null>(null);
+  const [targetRecordPath, setTargetRecordPath] = useState<string | null>(null);
 
   const [dragging, setDragging] = useState<{
     fieldName: string;
@@ -188,6 +192,99 @@ export const MappingEditorModal = ({
       })
       .catch(() => setFetchedTargetIO({ inputs: [], outputs: [] }));
   }, [targetNodeId, isOpen, availableNodes]);
+
+  // sourceRecordPath 설정 시 children 자동 로드 (static children이 없으면 API fetch)
+  useEffect(() => {
+    if (!sourceRecordPath || !isOpen) return;
+    const node = availableNodes.find(n => n.id === sourceNodeId);
+    if (!node) return;
+    // static children이 있거나 이미 loaded면 skip
+    const staticField = node.outputs.find(f => f.name === sourceRecordPath);
+    if (staticField?.children && staticField.children.length > 0) return;
+    if (loadedSourceChildren.hasOwnProperty(sourceRecordPath)) return;
+    // API fetch (toggleSourceRecord와 동일 로직)
+    const componentId = node.ido?.componentId || '';
+    const comTp = node.ido?.type || 'IMO';
+    setLoadingSourceRecords(prev => { const next = new Set(prev); next.add(sourceRecordPath); return next; });
+    (async () => {
+      try {
+        let children: FieldInfo[] = [];
+        if (componentId) {
+          const ioData = await fetchComponentIO(componentId, comTp);
+          const recordField = ioData.outputs.find(
+            (f: any) => (f.fieldType === 'RECORD' || f.type === 'RECORD') &&
+              (f.englishName === sourceRecordPath || f.name === sourceRecordPath)
+          );
+          children = (recordField?.children || []).map((c: any) => ({
+            name: c.englishName || c.name || '',
+            fieldType: c.fieldType || c.type || 'FIELD',
+            children: c.children,
+          }));
+        }
+        if (children.length === 0) {
+          const cmoData = await fetchComponentIO(sourceRecordPath, 'CMO');
+          const allCmoFields = [...(cmoData.outputs || []), ...(cmoData.inputs || [])];
+          children = allCmoFields.map((c: any) => ({
+            name: c.englishName || c.name || '',
+            fieldType: c.fieldType || c.type || 'FIELD',
+            children: c.children,
+          }));
+        }
+        setLoadedSourceChildren(prev => ({ ...prev, [sourceRecordPath]: children }));
+      } catch (e) {
+        setLoadedSourceChildren(prev => ({ ...prev, [sourceRecordPath]: [] }));
+      } finally {
+        setLoadingSourceRecords(prev => { const next = new Set(prev); next.delete(sourceRecordPath); return next; });
+      }
+      setTimeout(() => forceUpdate(), 50);
+    })();
+  }, [sourceRecordPath, sourceNodeId, isOpen, availableNodes]);
+
+  // targetRecordPath 설정 시 children 자동 로드
+  useEffect(() => {
+    if (!targetRecordPath || !isOpen) return;
+    const node = availableNodes.find(n => n.id === targetNodeId);
+    if (!node) return;
+    const staticField = node.inputs.find(f => f.name === targetRecordPath);
+    if (staticField?.children && staticField.children.length > 0) return;
+    if (loadedTargetChildren.hasOwnProperty(targetRecordPath)) return;
+    const componentId = node.ido?.componentId || '';
+    const comTp = node.ido?.type || 'IMO';
+    setLoadingTargetRecords(prev => { const next = new Set(prev); next.add(targetRecordPath); return next; });
+    (async () => {
+      try {
+        let children: FieldInfo[] = [];
+        if (componentId) {
+          const ioData = await fetchComponentIO(componentId, comTp);
+          const allFields = [...(ioData.outputs || []), ...(ioData.inputs || [])];
+          const recordField = allFields.find(
+            (f: any) => (f.fieldType === 'RECORD' || f.type === 'RECORD') &&
+              (f.englishName === targetRecordPath || f.name === targetRecordPath)
+          );
+          children = (recordField?.children || []).map((c: any) => ({
+            name: c.englishName || c.name || '',
+            fieldType: c.fieldType || c.type || 'FIELD',
+            children: c.children,
+          }));
+        }
+        if (children.length === 0) {
+          const cmoData = await fetchComponentIO(targetRecordPath, 'CMO');
+          const allCmoFields = [...(cmoData.outputs || []), ...(cmoData.inputs || [])];
+          children = allCmoFields.map((c: any) => ({
+            name: c.englishName || c.name || '',
+            fieldType: c.fieldType || c.type || 'FIELD',
+            children: c.children,
+          }));
+        }
+        setLoadedTargetChildren(prev => ({ ...prev, [targetRecordPath]: children }));
+      } catch (e) {
+        setLoadedTargetChildren(prev => ({ ...prev, [targetRecordPath]: [] }));
+      } finally {
+        setLoadingTargetRecords(prev => { const next = new Set(prev); next.delete(targetRecordPath); return next; });
+      }
+      setTimeout(() => forceUpdate(), 50);
+    })();
+  }, [targetRecordPath, targetNodeId, isOpen, availableNodes]);
 
   // 자동매핑 모달 상태
   const [autoMapModalOpen, setAutoMapModalOpen] = useState(false);
@@ -391,6 +488,9 @@ export const MappingEditorModal = ({
       sourceFieldRefs.current.clear();
       targetFieldRefs.current.clear();
       setRefsReady(false);
+      // RECORD 범위 초기화
+      setSourceRecordPath(null);
+      setTargetRecordPath(null);
 
       // lazy-loading 상태 초기화
       setLoadedSourceChildren({});
@@ -681,16 +781,35 @@ export const MappingEditorModal = ({
   }, [expandedTargetRecords, loadedTargetChildren, targetNode, forceUpdate]);
 
   // 펼쳐진 필드 목록
+  // sourceRecordPath가 있으면 해당 RECORD의 children만, 없으면 전체 outputs
   const flattenedSourceOutputs = useMemo(() => {
     if (!sourceNode) return [];
+    if (sourceRecordPath) {
+      // RECORD children 조회: loadedSourceChildren 우선, 없으면 node.outputs에서 탐색
+      const loadedChildren = loadedSourceChildren[sourceRecordPath];
+      const staticField = sourceNode.outputs.find(f => f.name === sourceRecordPath);
+      const children = (loadedChildren && loadedChildren.length > 0)
+        ? loadedChildren
+        : (staticField?.children || []);
+      // children을 소스 RECORD 접두 경로로 flattenFields
+      return flattenFields(children, expandedSourceRecords, sourceRecordPath, loadedSourceChildren);
+    }
     return flattenFields(sourceNode.outputs, expandedSourceRecords, '', loadedSourceChildren);
-  }, [sourceNode, flattenFields, expandedSourceRecords, loadedSourceChildren]);
+  }, [sourceNode, sourceRecordPath, flattenFields, expandedSourceRecords, loadedSourceChildren]);
 
   const flattenedTargetInputs = useMemo(() => {
     if (!targetNode) return [];
+    if (targetRecordPath) {
+      const loadedChildren = loadedTargetChildren[targetRecordPath];
+      const staticField = targetNode.inputs.find(f => f.name === targetRecordPath);
+      const children = (loadedChildren && loadedChildren.length > 0)
+        ? loadedChildren
+        : (staticField?.children || []);
+      return flattenFields(children, expandedTargetRecords, targetRecordPath, loadedTargetChildren);
+    }
     const result = flattenFields(targetNode.inputs, expandedTargetRecords, '', loadedTargetChildren);
     return result;
-  }, [targetNode, flattenFields, expandedTargetRecords, loadedTargetChildren]);
+  }, [targetNode, targetRecordPath, flattenFields, expandedTargetRecords, loadedTargetChildren]);
 
   // Ref 콜백 - ref가 설정될 때마다 강제 업데이트
   const setSourceFieldRef = useCallback((fieldName: string, idx: number, el: HTMLDivElement | null) => {
@@ -1439,7 +1558,9 @@ export const MappingEditorModal = ({
               >
                 <span>
                   {sourceNode
-                    ? `${sourceNode.label || sourceNode.id} (${sourceNode.type})`
+                    ? sourceRecordPath
+                      ? `${sourceNode.label || sourceNode.id}.${sourceRecordPath}`
+                      : `${sourceNode.label || sourceNode.id} (${sourceNode.type})`
                     : '선택'}
                 </span>
                 <ChevronDown size={14} style={{ color: '#94a3b8', transform: sourceDropdownOpen ? 'rotate(180deg)' : 'none' }} />
@@ -1456,45 +1577,85 @@ export const MappingEditorModal = ({
                     border: '1px solid #e2e8f0',
                     borderRadius: '6px',
                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                    maxHeight: '180px',
+                    maxHeight: '240px',
                     overflowY: 'auto',
                     zIndex: 100,
                   }}
                 >
                   {nodesWithOutputs.length > 0 ? (
-                    nodesWithOutputs.map(node => (
-                      <button
-                        key={node.id}
-                        type="button"
-                        onClick={() => {
-                          setSourceNodeId(node.id);
-                          setSourceDropdownOpen(false);
-                          sourceFieldRefs.current.clear();
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '6px 10px',
-                          textAlign: 'left',
-                          backgroundColor: sourceNodeId === node.id ? '#eff6ff' : 'white',
-                          border: 'none',
-                          borderBottom: '1px solid #f1f5f9',
-                          cursor: 'pointer',
-                          fontSize: '13px',
-                        }}
-                      >
-                        <span style={{ fontWeight: '500', color: '#1e293b' }}>
-                          {node.label || node.id}
-                        </span>
-                        <span style={{
-                          fontSize: '11px',
-                          marginLeft: '6px',
-                          color: node.type === 'Variable' ? '#059669' : '#94a3b8',
-                          fontWeight: node.type === 'Variable' ? '500' : 'normal',
-                        }}>
-                          ({node.type})
-                        </span>
-                      </button>
-                    ))
+                    nodesWithOutputs.flatMap(node => {
+                      // 노드 자체 항목
+                      const nodeItem = (
+                        <button
+                          key={node.id}
+                          type="button"
+                          onClick={() => {
+                            setSourceNodeId(node.id);
+                            setSourceRecordPath(null);
+                            setSourceDropdownOpen(false);
+                            sourceFieldRefs.current.clear();
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '6px 10px',
+                            textAlign: 'left',
+                            backgroundColor: sourceNodeId === node.id && !sourceRecordPath ? '#eff6ff' : 'white',
+                            border: 'none',
+                            borderBottom: '1px solid #f1f5f9',
+                            cursor: 'pointer',
+                            fontSize: '13px',
+                          }}
+                        >
+                          <span style={{ fontWeight: '500', color: '#1e293b' }}>
+                            {node.label || node.id}
+                          </span>
+                          <span style={{
+                            fontSize: '11px',
+                            marginLeft: '6px',
+                            color: node.type === 'Variable' ? '#059669' : '#94a3b8',
+                            fontWeight: node.type === 'Variable' ? '500' : 'normal',
+                          }}>
+                            ({node.type})
+                          </span>
+                        </button>
+                      );
+                      // 해당 노드 outputs에서 최상위 RECORD/COMMON 필드만 하위 항목으로 추가
+                      const recordFields = node.outputs.filter(f => isRecordFieldType(f.fieldType));
+                      const recordItems = recordFields.map(rf => (
+                        <button
+                          key={`${node.id}__rec__${rf.name}`}
+                          type="button"
+                          onClick={() => {
+                            setSourceNodeId(node.id);
+                            setSourceRecordPath(rf.name);
+                            setSourceDropdownOpen(false);
+                            sourceFieldRefs.current.clear();
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '5px 10px 5px 28px',
+                            textAlign: 'left',
+                            backgroundColor: sourceNodeId === node.id && sourceRecordPath === rf.name ? '#eff6ff' : '#f8fafc',
+                            border: 'none',
+                            borderBottom: '1px solid #f1f5f9',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <span style={{ color: '#7c3aed', fontSize: '10px', fontWeight: 700 }}>↳</span>
+                          <span style={{ color: '#1e293b', fontWeight: '500' }}>
+                            {node.label || node.id}.{rf.name}
+                          </span>
+                          <span style={{ fontSize: '10px', color: '#7c3aed', marginLeft: '4px', fontWeight: 500 }}>
+                            [{rf.fieldType?.toUpperCase()}]
+                          </span>
+                        </button>
+                      ));
+                      return [nodeItem, ...recordItems];
+                    })
                   ) : (
                     <div style={{ padding: '12px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
                       선택 가능한 노드 없음
@@ -1555,7 +1716,13 @@ export const MappingEditorModal = ({
                       color: targetNodeId ? '#1e293b' : '#94a3b8',
                     }}
                   >
-                    <span>{targetNode ? `${targetNode.label || targetNode.id} (${targetNode.type})` : '선택'}</span>
+                    <span>
+                      {targetNode
+                        ? targetRecordPath
+                          ? `${targetNode.label || targetNode.id}.${targetRecordPath}`
+                          : `${targetNode.label || targetNode.id} (${targetNode.type})`
+                        : '선택'}
+                    </span>
                     <ChevronDown size={14} style={{ color: '#94a3b8', transform: targetDropdownOpen ? 'rotate(180deg)' : 'none' }} />
                   </button>
                   {targetDropdownOpen && (
@@ -1570,36 +1737,74 @@ export const MappingEditorModal = ({
                         border: '1px solid #e2e8f0',
                         borderRadius: '6px',
                         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                        maxHeight: '180px',
+                        maxHeight: '240px',
                         overflowY: 'auto',
                         zIndex: 100,
                       }}
                     >
                       {nodesWithInputs.length > 0 ? (
-                        nodesWithInputs.map(node => (
-                          <button
-                            key={node.id}
-                            type="button"
-                            onClick={() => {
-                              setTargetNodeId(node.id);
-                              setTargetDropdownOpen(false);
-                              targetFieldRefs.current.clear();
-                            }}
-                            style={{
-                              width: '100%',
-                              padding: '6px 10px',
-                              textAlign: 'left',
-                              backgroundColor: targetNodeId === node.id ? '#eff6ff' : 'white',
-                              border: 'none',
-                              borderBottom: '1px solid #f1f5f9',
-                              cursor: 'pointer',
-                              fontSize: '13px',
-                            }}
-                          >
-                            <span style={{ fontWeight: '500', color: '#1e293b' }}>{node.label || node.id}</span>
-                            <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '6px' }}>({node.type})</span>
-                          </button>
-                        ))
+                        nodesWithInputs.flatMap(node => {
+                          const nodeItem = (
+                            <button
+                              key={node.id}
+                              type="button"
+                              onClick={() => {
+                                setTargetNodeId(node.id);
+                                setTargetRecordPath(null);
+                                setTargetDropdownOpen(false);
+                                targetFieldRefs.current.clear();
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '6px 10px',
+                                textAlign: 'left',
+                                backgroundColor: targetNodeId === node.id && !targetRecordPath ? '#eff6ff' : 'white',
+                                border: 'none',
+                                borderBottom: '1px solid #f1f5f9',
+                                cursor: 'pointer',
+                                fontSize: '13px',
+                              }}
+                            >
+                              <span style={{ fontWeight: '500', color: '#1e293b' }}>{node.label || node.id}</span>
+                              <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '6px' }}>({node.type})</span>
+                            </button>
+                          );
+                          const recordFields = node.inputs.filter(f => isRecordFieldType(f.fieldType));
+                          const recordItems = recordFields.map(rf => (
+                            <button
+                              key={`${node.id}__rec__${rf.name}`}
+                              type="button"
+                              onClick={() => {
+                                setTargetNodeId(node.id);
+                                setTargetRecordPath(rf.name);
+                                setTargetDropdownOpen(false);
+                                targetFieldRefs.current.clear();
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '5px 10px 5px 28px',
+                                textAlign: 'left',
+                                backgroundColor: targetNodeId === node.id && targetRecordPath === rf.name ? '#eff6ff' : '#f8fafc',
+                                border: 'none',
+                                borderBottom: '1px solid #f1f5f9',
+                                cursor: 'pointer',
+                                fontSize: '12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                            >
+                              <span style={{ color: '#d97706', fontSize: '10px', fontWeight: 700 }}>↳</span>
+                              <span style={{ color: '#1e293b', fontWeight: '500' }}>
+                                {node.label || node.id}.{rf.name}
+                              </span>
+                              <span style={{ fontSize: '10px', color: '#d97706', marginLeft: '4px', fontWeight: 500 }}>
+                                [{rf.fieldType?.toUpperCase()}]
+                              </span>
+                            </button>
+                          ));
+                          return [nodeItem, ...recordItems];
+                        })
                       ) : (
                         <div style={{ padding: '12px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
                           선택 가능한 노드 없음
@@ -1708,8 +1913,33 @@ export const MappingEditorModal = ({
                 gap: '6px',
               }}
             >
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', flexShrink: 0 }} />
               <span style={{ fontWeight: '600', fontSize: '12px', color: '#065f46' }}>Source</span>
+              {sourceRecordPath && (
+                <>
+                  <span style={{ fontSize: '11px', color: '#059669', fontWeight: 500, marginLeft: '4px' }}>
+                    [{sourceRecordPath}]
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { setSourceRecordPath(null); sourceFieldRefs.current.clear(); }}
+                    style={{
+                      marginLeft: 'auto',
+                      padding: '1px 6px',
+                      fontSize: '10px',
+                      backgroundColor: '#d1fae5',
+                      border: '1px solid #6ee7b7',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      color: '#065f46',
+                      fontWeight: 600,
+                    }}
+                    title="전체 필드 보기로 돌아가기"
+                  >
+                    전체
+                  </button>
+                </>
+              )}
             </div>
             <div ref={sourceScrollRef} onScroll={handleScroll} style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
               {sourceNode && flattenedSourceOutputs.length > 0 ? (
@@ -1868,8 +2098,33 @@ export const MappingEditorModal = ({
                 gap: '6px',
               }}
             >
+              {targetRecordPath && (
+                <button
+                  type="button"
+                  onClick={() => { setTargetRecordPath(null); targetFieldRefs.current.clear(); }}
+                  style={{
+                    marginRight: 'auto',
+                    padding: '1px 6px',
+                    fontSize: '10px',
+                    backgroundColor: '#fef3c7',
+                    border: '1px solid #fcd34d',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    color: '#92400e',
+                    fontWeight: 600,
+                  }}
+                  title="전체 필드 보기로 돌아가기"
+                >
+                  전체
+                </button>
+              )}
+              {targetRecordPath && (
+                <span style={{ fontSize: '11px', color: '#d97706', fontWeight: 500 }}>
+                  [{targetRecordPath}]
+                </span>
+              )}
               <span style={{ fontWeight: '600', fontSize: '12px', color: '#92400e' }}>Target</span>
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#f59e0b', flexShrink: 0 }} />
             </div>
             <div ref={targetScrollRef} onScroll={handleScroll} style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
               {targetNode && flattenedTargetInputs.length > 0 ? (

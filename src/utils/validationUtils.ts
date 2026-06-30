@@ -1,7 +1,7 @@
 import { Node, Edge } from 'reactflow';
 
 export interface ValidationError {
-  type: 'NO_START' | 'NO_END' | 'NOT_CONNECTED' | 'EMPTY_CALLDO' | 'CONTAINER_NOT_CONNECTED' | 'DISCONNECTED_NODE' | 'UNCALLED_METHOD' | 'ORPHAN_NODE' | 'EMPTY_CONDITION' | 'EMPTY_SCRIPT' | 'IFELSE_BRANCH_MISSING' | 'EMPTY_VARIABLE' | 'EMPTY_FOR' | 'EMPTY_FOREACH' | 'BROKEN_CALLMETHOD' | 'EMPTY_ERROR' | 'DEAD_END';
+  type: 'NO_START' | 'NO_END' | 'NOT_CONNECTED' | 'EMPTY_CALLDO' | 'CONTAINER_NOT_CONNECTED' | 'DISCONNECTED_NODE' | 'UNCALLED_METHOD' | 'ORPHAN_NODE' | 'EMPTY_CONDITION' | 'EMPTY_SCRIPT' | 'IFELSE_BRANCH_MISSING' | 'EMPTY_VARIABLE' | 'EMPTY_FOR' | 'EMPTY_FOREACH' | 'BROKEN_CALLMETHOD' | 'EMPTY_ERROR' | 'DEAD_END' | 'DUPLICATE_ID';
   message: string;
   nodeIds?: string[];
 }
@@ -277,6 +277,20 @@ export const validateFlow = (nodes: Node[], edges: Edge[]): ValidationResult => 
       type: 'DEAD_END',
       message: `막다른 노드가 있습니다 (나가는 연결 없음): ${deadEndNodes.map(n => n.data?.label || n.id).join(', ')}`,
       nodeIds: deadEndNodes.map(n => n.id),
+    });
+  }
+
+  // 18. 중복 노드 ID 검사 (전체 nodes 대상)
+  const idCount = new Map<string, number>();
+  for (const n of nodes) {
+    idCount.set(n.id, (idCount.get(n.id) || 0) + 1);
+  }
+  const duplicateIds = [...idCount.entries()].filter(([, count]) => count > 1).map(([id]) => id);
+  if (duplicateIds.length > 0) {
+    errors.push({
+      type: 'DUPLICATE_ID',
+      message: `중복된 노드 ID가 있습니다: ${duplicateIds.join(', ')}`,
+      nodeIds: duplicateIds,
     });
   }
 

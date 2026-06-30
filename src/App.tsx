@@ -53,6 +53,7 @@ import {
   Hand,
 } from 'lucide-react';
 import { ErrorNode } from './components/ErrorNode';
+import { BreakNode } from './components/BreakNode';
 import { WhileNode } from './components/WhileNode';
 import { ForNode } from './components/ForNode';
 import { ForEachNode } from './components/ForEachNode';
@@ -210,6 +211,7 @@ export default function App() {
     IfElse: ConditionNode,
     Switch: SwitchNode,
     Error: ErrorNode,
+    Break: BreakNode,
     While: WhileNode,
     For: ForNode,
     ForEach: ForEachNode,
@@ -252,6 +254,7 @@ export default function App() {
   // ID Change Modal State
   const [idChangeModal, setIdChangeModal] = useState<{ nodeId: string; currentId: string } | null>(null);
   const [newIdValue, setNewIdValue] = useState('');
+  const [idChangeError, setIdChangeError] = useState('');
 
   // Mapping Context Menu and Modal State
   const [mappingContextMenu, setMappingContextMenu] = useState<{ top: number; left: number; nodeId: string } | null>(null);
@@ -275,7 +278,7 @@ export default function App() {
   });
 
   // Condition Edit Modal State
-  const [conditionModal, setConditionModal] = useState<{ isOpen: boolean; nodeId: string | null; expression: string }>({
+  const [conditionModal, setConditionModal] = useState<{ isOpen: boolean; nodeId: string | null; expression: string; isVariable?: boolean }>({
     isOpen: false,
     nodeId: null,
     expression: '',
@@ -363,7 +366,7 @@ export default function App() {
 
   // Error Modal State
   const [errorNodeIds, setErrorNodeIds] = useState<Set<string>>(new Set());
-  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string }>({
+  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string; allowIgnore?: boolean }>({
     isOpen: false,
     title: '',
     message: '',
@@ -998,20 +1001,14 @@ export default function App() {
       // Generate unique node ID by checking existing nodes to avoid duplicates
       const isEnd = type === 'End';
 
-      // Find next available ID by checking existing nodes
+      // ID 규칙: 노드 타입명 + 순번 (예: CallDO1, IfElse1, Break1). 전체 노드 기준 중복 회피.
       let id: string;
-      if (isEnd) {
+      {
         let counter = 1;
-        while (nodes.some(n => n.id === `end${counter}`)) {
+        while (nodes.some(n => n.id === `${type}${counter}`)) {
           counter++;
         }
-        id = `end${counter}`;
-      } else {
-        let counter = 1;
-        while (nodes.some(n => n.id === `node${counter}`)) {
-          counter++;
-        }
-        id = `node${counter}`;
+        id = `${type}${counter}`;
       }
 
       const isGroupLike = ['Method', 'While', 'For', 'ForEach'].includes(type);
@@ -1520,6 +1517,7 @@ export default function App() {
         isOpen: true,
         nodeId: node.id,
         expression: node.data.expression || '',
+        isVariable: true,
       });
       return;
     }
@@ -1530,6 +1528,7 @@ export default function App() {
         isOpen: true,
         nodeId: node.id,
         expression: node.data.expression || '',
+        isVariable: false,
       });
       return;
     }
@@ -1649,11 +1648,7 @@ export default function App() {
     // Check if new ID already exists
     const idExists = nodes.some(n => n.id === newId && n.id !== oldId);
     if (idExists) {
-      setErrorModal({
-        isOpen: true,
-        title: 'ID Change Error',
-        message: `ID "${newId}"는 이미 존재합니다. 다른 ID를 입력해주세요.`,
-      });
+      setIdChangeError(`ID "${newId}"는 이미 존재합니다. 다른 ID를 입력하세요.`);
       return;
     }
 
@@ -1767,6 +1762,7 @@ export default function App() {
 
     setIdChangeModal(null);
     setNewIdValue('');
+    setIdChangeError('');
   }, [idChangeModal, newIdValue, nodes, takeSnapshot]);
 
   const handleIOSave = useCallback((inputs: any[], outputs: any[]) => {
@@ -2109,10 +2105,12 @@ export default function App() {
           const ids = e.nodeIds?.length ? ` [${e.nodeIds.join(', ')}]` : '';
           return '• ' + e.message + ids;
         }).join('\n');
+        const hasDuplicateId = validation.errors.some(e => e.type === 'DUPLICATE_ID');
         setErrorModal({
           isOpen: true,
           title: '저장 실패',
           message: '다음 문제를 해결해주세요:\n\n' + errorMsg,
+          allowIgnore: !hasDuplicateId,
         });
         return false;
       }
@@ -2656,6 +2654,12 @@ export default function App() {
         nodeId={conditionModal.nodeId}
         initialExpression={conditionModal.expression}
         onSave={handleConditionSave}
+        {...(conditionModal.isVariable ? {
+          title: '변수 expression 수정',
+          subtitle: '변수에 할당할 expression을 입력하세요',
+          fieldLabel: 'expression',
+          placeholder: '예: session.USER_NM',
+        } : {})}
       />
 
       <ScriptEditModal
@@ -2780,30 +2784,32 @@ export default function App() {
               <p className="text-slate-700 text-sm leading-relaxed" style={{ whiteSpace: 'pre-line' }}>{errorModal.message}</p>
             </div>
             <div className="px-6 pb-6 flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setErrorModal({ isOpen: false, title: '', message: '' });
-                  setErrorNodeIds(new Set());
-                  // 무시하고 강제 저장
-                  const allCleanNodes = nodes.map(n => cleanNodeForExport(n));
-                  const flowData = { nodes: allCleanNodes, edges, version: '2.0', timestamp: Date.now() };
-                  const jsonStr = JSON.stringify(flowData);
-                  const message = { type: 'SAVE_FLOW_DATA', payload: jsonStr };
-                  window.parent.postMessage(message, '*');
-                  if (window.top && window.top !== window.parent) {
-                    window.top.postMessage(message, '*');
-                  }
-                  // 닫기 신호
-                  const closeMsg = { type: 'CLOSE_FLOW_EDITOR' };
-                  window.parent.postMessage(closeMsg, '*');
-                  if (window.top && window.top !== window.parent) {
-                    window.top.postMessage(closeMsg, '*');
-                  }
-                }}
-                className="px-4 py-2 bg-amber-500 text-white rounded-md hover:bg-amber-600 transition-colors text-sm font-medium"
-              >
-                무시 저장
-              </button>
+              {errorModal.allowIgnore !== false && (
+                <button
+                  onClick={() => {
+                    setErrorModal({ isOpen: false, title: '', message: '' });
+                    setErrorNodeIds(new Set());
+                    // 무시하고 강제 저장
+                    const allCleanNodes = nodes.map(n => cleanNodeForExport(n));
+                    const flowData = { nodes: allCleanNodes, edges, version: '2.0', timestamp: Date.now() };
+                    const jsonStr = JSON.stringify(flowData);
+                    const message = { type: 'SAVE_FLOW_DATA', payload: jsonStr };
+                    window.parent.postMessage(message, '*');
+                    if (window.top && window.top !== window.parent) {
+                      window.top.postMessage(message, '*');
+                    }
+                    // 닫기 신호
+                    const closeMsg = { type: 'CLOSE_FLOW_EDITOR' };
+                    window.parent.postMessage(closeMsg, '*');
+                    if (window.top && window.top !== window.parent) {
+                      window.top.postMessage(closeMsg, '*');
+                    }
+                  }}
+                  className="px-4 py-2 bg-amber-500 text-white rounded-md hover:bg-amber-600 transition-colors text-sm font-medium"
+                >
+                  무시 저장
+                </button>
+              )}
               <button
                 onClick={() => setErrorModal({ isOpen: false, title: '', message: '' })}
                 className="px-4 py-2 bg-slate-600 text-white rounded-md hover:bg-slate-700 transition-colors text-sm font-medium"
@@ -2838,6 +2844,7 @@ export default function App() {
                   // 첫 글자가 숫자면 제거
                   const validated = filtered.replace(/^[0-9]+/, '');
                   setNewIdValue(validated);
+                  setIdChangeError('');
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -2845,12 +2852,18 @@ export default function App() {
                   } else if (e.key === 'Escape') {
                     setIdChangeModal(null);
                     setNewIdValue('');
+                    setIdChangeError('');
                   }
                 }}
                 autoFocus
                 className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#5277f7] focus:border-transparent"
                 placeholder="새 nodeId 입력"
               />
+              {idChangeError && (
+                <p className="mt-2 text-xs text-red-600 font-medium">
+                  {idChangeError}
+                </p>
+              )}
               <p className="mt-2 text-xs text-slate-500">
                 현재 ID: {idChangeModal.currentId}
               </p>
@@ -2863,6 +2876,7 @@ export default function App() {
                 onClick={() => {
                   setIdChangeModal(null);
                   setNewIdValue('');
+                  setIdChangeError('');
                 }}
                 className="px-4 py-2 bg-slate-100 text-slate-700 rounded-md hover:bg-slate-200 transition-colors text-sm font-medium"
               >
