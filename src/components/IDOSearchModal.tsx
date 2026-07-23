@@ -249,9 +249,9 @@ export const IDOSearchModal = ({ isOpen, onClose, onSelect, currentNodeLabel }: 
             <button
               onClick={handleSearch}
               disabled={loading}
-              className="h-[26px] px-6 bg-[#5277f7] text-white text-sm rounded-[4px] hover:bg-[#4162d9] font-medium shadow-sm disabled:opacity-50"
+              className="h-[26px] px-6 inline-flex items-center justify-center bg-[#5277f7] text-white text-sm rounded-[4px] hover:bg-[#4162d9] font-medium shadow-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#5277f7]/40 transition-colors"
             >
-              {loading ? '조회중...' : '검색'}
+              검색
             </button>
           </div>
         </div>
