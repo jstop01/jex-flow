@@ -1,7 +1,8 @@
 import type { IOField } from '../components/IOSettingModal';
+import { JEXQ_BIZ_BASE } from '../utils/contextPath';
 
-// API 설정
-const API_BASE_URL = '/plugins/jexq_biz';
+// API 설정 (context-path 포함 — JEUS 등 context-path 환경 대응)
+const API_BASE_URL = JEXQ_BIZ_BASE;
 
 export interface ComponentItem {
   id: string;

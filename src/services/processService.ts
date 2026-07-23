@@ -1,9 +1,10 @@
 import { ServiceTypeDataResponse, ServiceTypeInputsResponse, InputField } from '../types/process';
 import { MOCK_SERVICE_TYPE_DATA, MOCK_SERVICE_TYPE_INPUTS } from '../data/process-mock';
+import { JEXQ_BIZ_BASE } from '../utils/contextPath';
 
-// API 설정
+// API 설정 (context-path 포함 — JEUS 등 context-path 환경 대응)
 const USE_MOCK = false;
-const API_BASE_URL = '/plugins/jexq_biz';
+const API_BASE_URL = JEXQ_BIZ_BASE;
 
 /**
  * 서버에서 서비스 타입 목록 조회 (PRC 함수)

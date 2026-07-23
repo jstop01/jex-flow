@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search } from 'lucide-react';
+import { JEXQ_BIZ_BASE } from '../utils/contextPath';
 
 export interface ErrorCodeItem {
   id: string;
@@ -24,7 +25,7 @@ export const CodeSelectionModal = ({ isOpen, onClose, onSelect }: CodeSelectionM
   useEffect(() => {
     if (isOpen) {
       setLoading(true);
-      fetch('/plugins/jexq_biz/flow_code_r001.jct', {
+      fetch(`${JEXQ_BIZ_BASE}/flow_code_r001.jct`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ LANG_CD: 'ko' }),

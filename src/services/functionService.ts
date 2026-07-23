@@ -1,4 +1,7 @@
-const API_BASE_URL = '/plugins/jexq_biz';
+import { JEXQ_BIZ_BASE } from '../utils/contextPath';
+
+// context-path 포함 (JEUS 등 context-path 환경 대응)
+const API_BASE_URL = JEXQ_BIZ_BASE;
 
 export interface MapFunction {
   code: string;
