@@ -16,7 +16,12 @@ export function getContextPath(): string {
     if (m) {
       try {
         // m[1] = "https://host{contextPath}" → pathname이 contextPath
-        return new URL(m[1], window.location.origin).pathname;
+        const p = new URL(m[1], window.location.origin).pathname;
+        // 루트 context(톰캣 등)는 pathname이 "/"로 나오는데, 그대로 쓰면
+        // "/" + "/plugins/..." = "//plugins/..."(프로토콜-상대 URL)이 되어 깨짐.
+        // 루트는 빈 문자열로 정규화하고, 그 외는 끝 슬래시 제거.
+        if (p === '/' || p === '') return '';
+        return p.endsWith('/') ? p.slice(0, -1) : p;
       } catch {
         return '';
       }
