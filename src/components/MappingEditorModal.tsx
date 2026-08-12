@@ -70,6 +70,7 @@ interface MappingEditorModalProps {
   edges: Edge[]; // All edges to determine upstream connections
   onSave: (mappings: MappingConnection[]) => void;
   fixedTargetNodeId?: string | null; // 타겟 노드를 고정할 때 사용 (입력 매핑 시)
+  initialSourceNodeId?: string | null; // 소스 노드 디폴트(CallDO 입력 매핑 시 그 노드 자신)
 }
 
 export const MappingEditorModal = ({
@@ -81,6 +82,7 @@ export const MappingEditorModal = ({
   edges,
   onSave,
   fixedTargetNodeId,
+  initialSourceNodeId,
 }: MappingEditorModalProps) => {
   const [mappings, setMappings] = useState<MappingConnection[]>([]);
   const [sourceNodeId, setSourceNodeId] = useState<string>('');
@@ -469,9 +471,14 @@ export const MappingEditorModal = ({
       // fixedTargetNodeId가 있으면 타겟 노드를 고정 (입력 매핑 시)
       if (fixedTargetNodeId) {
         setTargetNodeId(fixedTargetNodeId);
-        if (migratedMappings && migratedMappings.length > 0) {
-          const firstSource = migratedMappings[0].sources?.[0];
-          setSourceNodeId(firstSource?.nodeId || '');
+        // 소스 디폴트 = 우클릭한 타겟 노드로 들어오는 연결(upstream)의 "한 단계 위" 노드.
+        // 그 노드의 output이 소스에 표시된다. 기존 매핑이 저장돼 있어도 이 직전 노드를 우선
+        // 디폴트로 잡고(저장된 소스보다 우선), upstream 연결이 없을 때만 저장된 소스로 폴백.
+        const incoming = edges.find(e => e.target === fixedTargetNodeId);
+        if (incoming?.source) {
+          setSourceNodeId(incoming.source);
+        } else if (migratedMappings && migratedMappings.length > 0) {
+          setSourceNodeId(migratedMappings[0].sources?.[0]?.nodeId || '');
         } else {
           setSourceNodeId('');
         }
@@ -657,17 +664,11 @@ export const MappingEditorModal = ({
       return;
     }
 
-    // children이 없으면 API fetch
+    // children이 없으면 API fetch (componentId 없어도 recordName으로 CMO 직접 조회 시도).
+    // Start 등 컴포넌트를 직접 참조하지 않는 노드도 COMMON을 펼치면 CMO를 로드해야 하므로
+    // toggleTargetRecord와 동일하게 componentId 유무로 early-return 하지 않는다.
     const componentId = sourceNode?.ido?.componentId || '';
     const comTp = sourceNode?.ido?.type || 'IMO';
-    if (!componentId) {
-      // componentId가 없으면 그냥 열기 (빈 children 허용)
-      sourceFieldRefs.current.clear();
-      setExpandedSourceRecords(prev => { const next = new Set(prev); next.add(recordName); return next; });
-      setTimeout(() => forceUpdate(), 50);
-      setTimeout(() => forceUpdate(), 150);
-      return;
-    }
 
     setLoadingSourceRecords(prev => { const next = new Set(prev); next.add(recordName); return next; });
     try {

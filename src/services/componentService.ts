@@ -268,15 +268,19 @@ function mapDomainToIOFields(
         const korName = m.KOR_WRD_NM || m.KOR_WRD_SRT || '';
 
         if (m.FLD_TP === 'RECORD' || m.FLD_TP === 'COMMON') {
-          // recordDomainMap(IO_TP='R')에서 children 조회, 없으면 빈 배열 (뒤 FIELD에서 채움)
-          const recordEntry = recordDomainMap[engName];
+          const isCommon = m.FLD_TP === 'COMMON';
+          // COMMON(공통부)은 같은 IMO 내 RECORD와 달리 별도 CMO(RULE_NM)를 참조한다.
+          // RECORD처럼 순서기반으로 뒤따르는 형제 FIELD를 자식으로 흡수하면 안 되고,
+          // children은 펼칠 때 CMO를 lazy-load 하여 채운다(MappingEditorModal의 toggleTargetRecord).
+          // → COMMON은 recordDomainMap(IO_TP='R') 조회 대상이 아니며 children은 항상 빈 배열로 둔다.
+          const recordEntry = isCommon ? undefined : recordDomainMap[engName];
           const children = recordEntry?.children?.length ? recordEntry.children : [];
           const recordField: IOField = {
             id: `${ioType}_R_${fields.length + 1}`,
             englishName: engName,
             koreanName: korName || recordEntry?.korName || engName,
             length: '',
-            fieldType: 'RECORD',
+            fieldType: isCommon ? 'COMMON' : 'RECORD',
             ruleName: m.RULE_NM || '',
             target: '',
             dataType: '',
@@ -288,12 +292,13 @@ function mapDomainToIOFields(
             masking: '',
             checked: false,
             name: engName,
-            type: 'RECORD',
+            type: isCommon ? 'COMMON' : 'RECORD',
             children,
           } as IOField;
           fields.push(recordField);
-          // IO_TP='R' children이 없으면, 뒤따르는 FIELD들을 이 RECORD의 children으로 수집
-          currentRecord = children.length > 0 ? null : recordField;
+          // RECORD만 순서기반 흡수: IO_TP='R' children이 없으면 뒤따르는 FIELD들을 이 RECORD의 children으로 수집.
+          // COMMON은 형제 FIELD를 흡수하지 않는다(최상위 형제로 유지).
+          currentRecord = isCommon ? null : (children.length > 0 ? null : recordField);
           return;
         }
 
@@ -359,10 +364,12 @@ function mapRecordDomains(
 ): IOField[] {
   const fields: IOField[] = [];
 
-  // O 도메인 MSG_INF에서 이미 참조된 RECORD COM_ID 수집 (중복 방지 - I는 제외)
-  // I 도메인에서 참조된 RECORD는 outputs에서 독립적으로 추가 가능
+  // INPUT/OUTPUT MSG_INF에서 참조된 RECORD/COMMON COM_ID 수집.
+  // outputs(=CallDO의 Source)에는 OUTPUT 메시지 항목만 나와야 하므로:
+  //  - OUTPUT 참조분은 mapDomainToIOFields('O')에서 이미 처리되니 여기선 중복 제외
+  //  - INPUT 참조분(예: IN_REC)은 output Source에 나오면 안 되므로 반드시 제외
   const referencedRecordIds = new Set<string>();
-  domainList.filter((d) => d.IO_TP === 'O').forEach((d) => {
+  domainList.filter((d) => d.IO_TP === 'O' || d.IO_TP === 'I').forEach((d) => {
     let prpt: Record<string, any> = {};
     try { prpt = d.PRPT_INF ? (typeof d.PRPT_INF === 'string' ? JSON.parse(d.PRPT_INF) : d.PRPT_INF) : {}; } catch {}
     const msgInf = prpt.MSG_INF;

@@ -270,11 +270,13 @@ export default function App() {
     nodeId: string | null;
     mappings: MappingConnection[];
     fixedTargetNodeId?: string | null;
+    initialSourceNodeId?: string | null;
   }>({
     isOpen: false,
     nodeId: null,
     mappings: [],
     fixedTargetNodeId: null,
+    initialSourceNodeId: null,
   });
 
   // Condition Edit Modal State
@@ -1779,11 +1781,13 @@ export default function App() {
     if (targetNodeId) {
       const targetNode = nodes.find(n => n.id === targetNodeId);
       if (targetNode) {
+        // 입력 매핑: 우클릭한 노드를 타겟으로 고정하고, 소스는 그 한 단계 위(직전) 노드로 잡는다.
+        // (직전 노드의 output이 소스에 표시됨 — 소스 디폴트 계산은 MappingEditorModal에서 edges로 처리)
         setMappingEditorModal({
           isOpen: true,
           nodeId: targetNodeId,
           mappings: targetNode.data.mappings || [],
-          fixedTargetNodeId: targetNodeId, // 입력 매핑: 우클릭한 노드를 타겟으로 고정
+          fixedTargetNodeId: targetNodeId,
         });
       }
     }
@@ -2565,6 +2569,8 @@ export default function App() {
               if (n.data?.isInternalStart || n.data?.isInternalEnd) return false;
               // 입력 매핑(fixedTargetNodeId)일 때는 고정 타겟 노드(자기 자신)를 포함
               if (mappingEditorModal.fixedTargetNodeId && n.id === mappingEditorModal.fixedTargetNodeId) return true;
+              // CallDO 입력 매핑(initialSourceNodeId)일 때는 소스가 될 자기 자신을 포함
+              if (mappingEditorModal.initialSourceNodeId && n.id === mappingEditorModal.initialSourceNodeId) return true;
               // 그 외에는 현재 노드(Mapping 노드) 자신은 제외
               return n.id !== mappingEditorModal.nodeId;
             })
@@ -2646,6 +2652,7 @@ export default function App() {
         edges={edges}
         onSave={handleMappingEditorSave}
         fixedTargetNodeId={mappingEditorModal.fixedTargetNodeId}
+        initialSourceNodeId={mappingEditorModal.initialSourceNodeId}
       />
 
       <ConditionEditModal
