@@ -573,10 +573,10 @@ export const MappingEditorModal = ({
     outputs: rawTargetNode.outputs.length > 0 ? rawTargetNode.outputs : fetchedTargetIO.outputs,
   } : rawTargetNode;
 
-  // fieldType이 Record/CMO 계열인지 판별 (대소문자 무관: 'RECORD' | 'Record' | 'COMMON' | 'Common')
+  // fieldType이 Record/CMO/Match 계열(펼침 가능)인지 판별 (대소문자 무관)
   const isRecordFieldType = (ft?: string) => {
     const upper = ft?.toUpperCase();
-    return upper === 'RECORD' || upper === 'COMMON';
+    return upper === 'RECORD' || upper === 'COMMON' || upper === 'MATCH';
   };
 
   // Record 타입의 children을 펼쳐서 flat한 배열로 만드는 함수

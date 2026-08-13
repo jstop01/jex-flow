@@ -141,7 +141,7 @@ function buildRecordDomainMap(
       arr = Array.isArray(msgInf.default) ? msgInf.default : (msgInf[Object.keys(msgInf)[0]] || []);
     }
     arr.forEach((m: any) => {
-      if (m.FLD_TP === 'RECORD' || m.FLD_TP === 'COMMON') {
+      if (m.FLD_TP === 'RECORD' || m.FLD_TP === 'COMMON' || m.FLD_TP === 'MATCH') {
         const eng = m.ENG_WRD_SRT || m.ENG_WRD_NM || '';
         if (eng && !recordKorNames[eng]) {
           recordKorNames[eng] = m.KOR_WRD_NM || m.KOR_WRD_SRT || '';
@@ -153,7 +153,7 @@ function buildRecordDomainMap(
   const map: Record<string, { korName: string; children: IOField[] }> = {};
 
   domainList
-    .filter((d) => d.IO_TP === 'R')
+    .filter((d) => d.IO_TP === 'R' || d.IO_TP === 'M')
     .forEach((d, idx) => {
       let prpt: Record<string, any> = {};
       try {
@@ -176,15 +176,13 @@ function buildRecordDomainMap(
         }
       }
 
-      const children: IOField[] = [];
-      msgInfArr.forEach((m: any, childIdx: number) => {
-        if (m.FLD_TP === 'GROUP') return;
-        const engName = m.ENG_WRD_SRT || m.ENG_WRD_NM || m.RULE_NM || `field_${childIdx + 1}`;
-        const childKorName = m.KOR_WRD_NM || m.KOR_WRD_SRT || '';
-        children.push({
-          id: `R_${idx + 1}_${childIdx + 1}`,
+      // FIELD 하나를 IOField로 변환하는 헬퍼
+      const toChildField = (m: any, fid: string): IOField => {
+        const engName = m.ENG_WRD_SRT || m.ENG_WRD_NM || m.RULE_NM || fid;
+        return {
+          id: fid,
           englishName: engName,
-          koreanName: childKorName,
+          koreanName: m.KOR_WRD_NM || m.KOR_WRD_SRT || '',
           length: m.LENGTH || '',
           fieldType: m.FLD_TP || 'FIELD',
           ruleName: m.RULE_NM || '',
@@ -200,8 +198,46 @@ function buildRecordDomainMap(
           name: engName,
           type: m.FLD_TP || 'FIELD',
           isRecordChild: true,
-        } as IOField);
-      });
+        } as IOField;
+      };
+
+      const children: IOField[] = [];
+      if (d.IO_TP === 'M') {
+        // MATCH: MSG_INF = [{VALUE, MSG:[...필드]}]. VALUE를 중간 노드로 두고 그 아래 필드를 배치한다.
+        // 결과 계층: Match ▼ → VALUE(01) ▼ → 필드. VALUE 노드는 펼침만 하는 그룹이라 RECORD로 취급.
+        msgInfArr.forEach((v: any, vi: number) => {
+          const valueId = (v && v.VALUE != null && v.VALUE !== '') ? String(v.VALUE) : `value_${vi + 1}`;
+          const valueFields: IOField[] = (v && Array.isArray(v.MSG) ? v.MSG : [])
+            .filter((m: any) => m.FLD_TP !== 'GROUP')
+            .map((m: any, ci: number) => toChildField(m, `R_${idx + 1}_${vi + 1}_${ci + 1}`));
+          children.push({
+            id: `R_${idx + 1}_${vi + 1}`,
+            englishName: valueId,
+            koreanName: valueId,
+            length: '',
+            fieldType: 'RECORD', // VALUE 노드: 펼침 가능하도록 RECORD 취급
+            ruleName: '',
+            target: '',
+            dataType: '',
+            alignment: '',
+            padding: '',
+            defaultValue: '',
+            required: false,
+            encryption: '',
+            masking: '',
+            checked: false,
+            name: valueId,
+            type: 'RECORD',
+            children: valueFields,
+            isRecordChild: true,
+          } as IOField);
+        });
+      } else {
+        msgInfArr.forEach((m: any, childIdx: number) => {
+          if (m.FLD_TP === 'GROUP') return;
+          children.push(toChildField(m, `R_${idx + 1}_${childIdx + 1}`));
+        });
+      }
 
       map[d.COM_ID] = { korName, children };
     });
@@ -267,20 +303,21 @@ function mapDomainToIOFields(
         const engName = m.ENG_WRD_SRT || m.ENG_WRD_NM || m.RULE_NM || `field_${fields.length + 1}`;
         const korName = m.KOR_WRD_NM || m.KOR_WRD_SRT || '';
 
-        if (m.FLD_TP === 'RECORD' || m.FLD_TP === 'COMMON') {
+        if (m.FLD_TP === 'RECORD' || m.FLD_TP === 'COMMON' || m.FLD_TP === 'MATCH') {
           const isCommon = m.FLD_TP === 'COMMON';
-          // COMMON(공통부)은 같은 IMO 내 RECORD와 달리 별도 CMO(RULE_NM)를 참조한다.
-          // RECORD처럼 순서기반으로 뒤따르는 형제 FIELD를 자식으로 흡수하면 안 되고,
-          // children은 펼칠 때 CMO를 lazy-load 하여 채운다(MappingEditorModal의 toggleTargetRecord).
-          // → COMMON은 recordDomainMap(IO_TP='R') 조회 대상이 아니며 children은 항상 빈 배열로 둔다.
+          const isMatch = m.FLD_TP === 'MATCH';
+          // COMMON(공통부)은 별도 CMO(RULE_NM)를 참조 → children은 펼칠 때 CMO를 lazy-load.
+          // MATCH는 같은 IMO의 M 도메인(recordDomainMap)에 VALUE별 필드를 flat으로 담아 RECORD처럼 펼침.
+          // RECORD/MATCH는 recordDomainMap에서 children을 가져오고, COMMON은 대상 아님(빈 배열).
           const recordEntry = isCommon ? undefined : recordDomainMap[engName];
           const children = recordEntry?.children?.length ? recordEntry.children : [];
+          const fldType = isCommon ? 'COMMON' : (isMatch ? 'MATCH' : 'RECORD');
           const recordField: IOField = {
             id: `${ioType}_R_${fields.length + 1}`,
             englishName: engName,
             koreanName: korName || recordEntry?.korName || engName,
             length: '',
-            fieldType: isCommon ? 'COMMON' : 'RECORD',
+            fieldType: fldType,
             ruleName: m.RULE_NM || '',
             target: '',
             dataType: '',
@@ -292,13 +329,13 @@ function mapDomainToIOFields(
             masking: '',
             checked: false,
             name: engName,
-            type: isCommon ? 'COMMON' : 'RECORD',
+            type: fldType,
             children,
           } as IOField;
           fields.push(recordField);
           // RECORD만 순서기반 흡수: IO_TP='R' children이 없으면 뒤따르는 FIELD들을 이 RECORD의 children으로 수집.
-          // COMMON은 형제 FIELD를 흡수하지 않는다(최상위 형제로 유지).
-          currentRecord = isCommon ? null : (children.length > 0 ? null : recordField);
+          // COMMON/MATCH는 형제 FIELD를 흡수하지 않는다(최상위 형제로 유지).
+          currentRecord = (isCommon || isMatch) ? null : (children.length > 0 ? null : recordField);
           return;
         }
 

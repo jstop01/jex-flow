@@ -145,7 +145,7 @@ export const IOPanel = ({ nodes, selectedNodeId }: IOPanelProps) => {
 
     // Render a single row (with optional indent for children)
     const renderRow = (field: IOField, idx: number, indent: number = 0) => {
-      const isRecord = field.fieldType === 'Record' || field.fieldType === 'RECORD' || field.fieldType === 'COMMON' || field.fieldType === 'Common';
+      const isRecord = field.fieldType === 'Record' || field.fieldType === 'RECORD' || field.fieldType === 'COMMON' || field.fieldType === 'Common' || field.fieldType === 'MATCH' || field.fieldType === 'Match';
       const isExpanded = expandedRecords.has(field.id);
       const isLoading = loadingRecords.has(field.id);
       const effectiveIndent = field.isRecordChild ? 1 : indent;
