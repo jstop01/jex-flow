@@ -1131,7 +1131,15 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
     };
 
     // 1) 서브 컨테이너 내부 노드 (parentId 없음 — 모달에서 직접 자식)
-    const internal = nodes.filter(n => !n.parentId).map(convertNode);
+    //    getInitialNodes가 직접 자식의 parentId를 undefined로 지웠으므로, 매핑 모달의
+    //    upstream(부모 체인) 탐색이 컨테이너 경계를 넘어 외부 노드까지 닿을 수 있도록
+    //    AvailableNodeInfo에는 실제 소속 컨테이너 id(containerId)를 parentId로 복원한다.
+    //    (nodes state/저장 data는 불변 — 매핑 모달용 임시 객체에만 반영)
+    const internal = nodes.filter(n => !n.parentId).map(n => {
+      const conv = convertNode(n);
+      // 내부 start/end 및 일반 자식 노드에 containerId를 parentId로 부여
+      return { ...conv, parentId: containerId };
+    });
     const internalIds = new Set(internal.map(n => n.id));
 
     // 2) 외부 노드: propsInitialNodes에서 현재 containerId의 후손이 아닌 노드
@@ -1157,7 +1165,17 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
       )
       .map(convertNode);
 
-    return [...internal, ...external];
+    // 브릿지 노드: 컨테이너 자신을 availableNodes에 포함시켜, 내부 노드→containerId→외부노드로
+    // 이어지는 parentId upstream 체인이 경계에서 끊기지 않게 한다. 이 노드는 outputs가 없어
+    // 소스 후보(outputs 있는 노드)로는 뜨지 않고 체인 연결용으로만 쓰인다.
+    // 컨테이너 자신의 parentId(자신을 감싸는 상위 컨테이너, 없으면 최상위)를 그대로 실어 상위로 계속 추적.
+    const containerNode = propsInitialNodes.find(n => n.id === containerId);
+    const bridge = containerNode
+      ? [{ id: containerId, label: containerId, type: containerNode.type || 'Container',
+           inputs: [], outputs: [], ido: undefined, parentId: containerNode.parentId }]
+      : [];
+
+    return [...internal, ...external, ...bridge];
   }, [nodes, propsInitialNodes, containerId]);
 
   // 매핑 모달에 전달할 edges: 서브 내부 edges + 외부 edges (upstream traversal 확장용)
@@ -1168,6 +1186,31 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
     );
     return [...edges, ...externalEdges];
   }, [edges, propsInitialEdges, nodes]);
+
+  // 중첩 컨테이너로 넘길 노드/엣지: 원본 전체 트리(propsInitialNodes)를 유지해야
+  // 손자 레벨에서도 최상위(메인 캔버스)까지의 외부 노드에 접근할 수 있다.
+  // (initialNodes={nodes}를 넘기면 이미 이 컨테이너 범위로 축소돼 손자가 조상 노드를 못 봄)
+  // 현재 편집 중인 직접 자식의 변경분(nodes, parentId가 벗겨진 상태)은 원본의 해당 노드에
+  // 덮어써서 반영하되 parentId는 원본 값(containerId)을 보존한다.
+  const mergedTreeForNested = useMemo(() => {
+    const editedById = new Map(nodes.filter(n => !n.parentId).map(n => [n.id, n]));
+    return propsInitialNodes.map(orig => {
+      const edited = editedById.get(orig.id);
+      return edited ? { ...edited, parentId: orig.parentId } : orig;
+    });
+  }, [propsInitialNodes, nodes]);
+  const mergedEdgesForNested = useMemo(() => {
+    const editedIds = new Set(nodes.filter(n => !n.parentId).map(n => n.id));
+    // 원본 엣지 중 편집 대상과 무관한 것 + 현재 편집 중 엣지 병합(중복 id 제거)
+    const merged = [...propsInitialEdges];
+    const seen = new Set(merged.map(e => e.id));
+    edges.forEach(e => {
+      if (!seen.has(e.id) && (editedIds.has(e.source) || editedIds.has(e.target))) {
+        merged.push(e); seen.add(e.id);
+      }
+    });
+    return merged;
+  }, [propsInitialEdges, edges, nodes]);
 
   // ReactFlow에 표시할 노드 필터링 (중첩 컨테이너의 자식 노드는 숨김)
   // parentId가 없는 노드만 현재 컨테이너에 직접 속하는 노드
@@ -1639,8 +1682,8 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
         containerId={nestedContainerModal.containerId}
         containerType={nestedContainerModal.containerType}
         containerLabel={nestedContainerModal.containerLabel}
-        initialNodes={nodes}
-        initialEdges={edges}
+        initialNodes={mergedTreeForNested}
+        initialEdges={mergedEdgesForNested}
         onSave={handleNestedContainerSave}
         initialStartValue={nestedContainerModal.startValue}
         initialEndValue={nestedContainerModal.endValue}
