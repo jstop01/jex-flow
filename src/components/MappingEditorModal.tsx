@@ -620,6 +620,19 @@ export const MappingEditorModal = ({
     return result;
   }, []);
 
+  // 화면에 나열된 flat 목록에서 동일 displayName이 중복되면 서비스관리와 동일하게 #n 접미사를 붙인다.
+  // (첫 등장은 원본 그대로, 2번째부터 #1, #2, ...).
+  // 표시 전용 displayLabel에만 반영하고, displayName(펼침/토글 키)·name(fieldPath, 저장키)은 불변 → 회귀 없음.
+  const applyDupSuffix = useCallback(<T extends { displayName: string }>(rows: T[]): Array<T & { displayLabel: string }> => {
+    const seen: Record<string, number> = {};
+    return rows.map(r => {
+      const base = r.displayName;
+      const cnt = seen[base] || 0;
+      seen[base] = cnt + 1;
+      return { ...r, displayLabel: cnt === 0 ? base : `${base}#${cnt}` };
+    });
+  }, []);
+
   // 자동매핑용: 모든 필드를 확장 상태에 관계없이 완전히 flat하게 변환
   const flattenAllFields = useCallback((
     fields: FieldInfo[],
@@ -793,10 +806,10 @@ export const MappingEditorModal = ({
         ? loadedChildren
         : (staticField?.children || []);
       // children을 소스 RECORD 접두 경로로 flattenFields
-      return flattenFields(children, expandedSourceRecords, sourceRecordPath, loadedSourceChildren);
+      return applyDupSuffix(flattenFields(children, expandedSourceRecords, sourceRecordPath, loadedSourceChildren));
     }
-    return flattenFields(sourceNode.outputs, expandedSourceRecords, '', loadedSourceChildren);
-  }, [sourceNode, sourceRecordPath, flattenFields, expandedSourceRecords, loadedSourceChildren]);
+    return applyDupSuffix(flattenFields(sourceNode.outputs, expandedSourceRecords, '', loadedSourceChildren));
+  }, [sourceNode, sourceRecordPath, flattenFields, applyDupSuffix, expandedSourceRecords, loadedSourceChildren]);
 
   const flattenedTargetInputs = useMemo(() => {
     if (!targetNode) return [];
@@ -806,11 +819,11 @@ export const MappingEditorModal = ({
       const children = (loadedChildren && loadedChildren.length > 0)
         ? loadedChildren
         : (staticField?.children || []);
-      return flattenFields(children, expandedTargetRecords, targetRecordPath, loadedTargetChildren);
+      return applyDupSuffix(flattenFields(children, expandedTargetRecords, targetRecordPath, loadedTargetChildren));
     }
-    const result = flattenFields(targetNode.inputs, expandedTargetRecords, '', loadedTargetChildren);
+    const result = applyDupSuffix(flattenFields(targetNode.inputs, expandedTargetRecords, '', loadedTargetChildren));
     return result;
-  }, [targetNode, targetRecordPath, flattenFields, expandedTargetRecords, loadedTargetChildren]);
+  }, [targetNode, targetRecordPath, flattenFields, applyDupSuffix, expandedTargetRecords, loadedTargetChildren]);
 
   // Ref 콜백 - ref가 설정될 때마다 강제 업데이트
   const setSourceFieldRef = useCallback((fieldName: string, idx: number, el: HTMLDivElement | null) => {
@@ -2018,7 +2031,7 @@ export const MappingEditorModal = ({
                                 fontWeight: field.isRecord ? 600 : 500,
                                 color: '#1e293b',
                               }}>
-                                {field.displayName}
+                                {(field as any).displayLabel ?? field.displayName}
                               </span>
                             </div>
                           </div>
@@ -2221,7 +2234,7 @@ export const MappingEditorModal = ({
                                 fontWeight: field.isRecord ? 600 : 500,
                                 color: '#1e293b',
                               }}>
-                                {field.displayName}
+                                {(field as any).displayLabel ?? field.displayName}
                               </span>
                             </div>
 
