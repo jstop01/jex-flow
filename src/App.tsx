@@ -339,9 +339,10 @@ export default function App() {
     containerId: string | null;
     containerType: 'Method' | 'While' | 'For' | 'ForEach' | null;
     containerLabel: string;
-    // For node (시작값, 종료값)
+    // For node (시작값, 종료값, 증감값)
     startValue: string;
     endValue: string;
+    stepValue: string;
     // ForEach node (노드 선택, 구분, 필드명)
     selectedNode: string;
     fieldType: 'input' | 'output';
@@ -358,6 +359,7 @@ export default function App() {
     containerLabel: '',
     startValue: '',
     endValue: '',
+    stepValue: '',
     selectedNode: '',
     fieldType: 'input',
     fieldName: '',
@@ -941,6 +943,7 @@ export default function App() {
       // 옛 데이터(start/end, startVal/endVal) fallback (이사님 export 태그 호환)
       const startVal = node.data.startValue ?? node.data.start ?? node.data.startVal ?? '';
       const endVal = node.data.endValue ?? node.data.end ?? node.data.endVal ?? '';
+      const stepVal = node.data.stepValue ?? node.data.step ?? '';
       setContainerFlowModal({
         isOpen: true,
         containerId: node.id,
@@ -948,6 +951,7 @@ export default function App() {
         containerLabel: node.data.label || 'Container',
         startValue: startVal,
         endValue: endVal,
+        stepValue: stepVal,
         selectedNode: node.data.selectedNode || '',
         fieldType: node.data.fieldType || 'input',
         fieldName: node.data.fieldName || '',
@@ -1486,6 +1490,7 @@ export default function App() {
       // 이사님 export 태그는 'start'/'end'이고, 이전 코드에서 'startVal'/'endVal'로 저장된 케이스도 있음
       const startVal = node.data.startValue ?? node.data.start ?? node.data.startVal ?? '';
       const endVal = node.data.endValue ?? node.data.end ?? node.data.endVal ?? '';
+      const stepVal = node.data.stepValue ?? node.data.step ?? '';
       setContainerFlowModal({
         isOpen: true,
         containerId: node.id,
@@ -1493,6 +1498,7 @@ export default function App() {
         containerLabel: node.data.label || 'Container',
         startValue: startVal,
         endValue: endVal,
+        stepValue: stepVal,
         selectedNode: node.data.selectedNode || '',
         fieldType: node.data.fieldType || 'input',
         fieldName: node.data.fieldName || '',
@@ -1979,6 +1985,7 @@ export default function App() {
     if (loopData && containerType === 'For') {
       updateNodeData(containerId, 'startValue', loopData.startValue || '');
       updateNodeData(containerId, 'endValue', loopData.endValue || '');
+      updateNodeData(containerId, 'stepValue', loopData.stepValue || '');
     } else if (loopData && containerType === 'ForEach') {
       // While과 동일 패턴: expression 하나만 저장
       updateNodeData(containerId, 'expression', loopData.expression || '');
@@ -1987,7 +1994,7 @@ export default function App() {
     }
 
     // 저장 완료 후 모달 닫기 (스냅샷 복원 없이)
-    setContainerFlowModal({ isOpen: false, containerId: null, containerType: null, containerLabel: '', startValue: '', endValue: '', selectedNode: '', fieldType: 'input', fieldName: '', expression: '', snapshotNodes: [], snapshotEdges: [] });
+    setContainerFlowModal({ isOpen: false, containerId: null, containerType: null, containerLabel: '', startValue: '', endValue: '', stepValue: '', selectedNode: '', fieldType: 'input', fieldName: '', expression: '', snapshotNodes: [], snapshotEdges: [] });
   }, [containerFlowModal.containerId, containerFlowModal.containerType, nodes, setNodes, setEdges, updateNodeData]);
   const handleCodeSelect = useCallback((codeItem: any) => {
     if (selectedNodeId) {
@@ -2711,7 +2718,7 @@ export default function App() {
       <ContainerFlowModal
         isOpen={containerFlowModal.isOpen}
         onClose={() => {
-          setContainerFlowModal({ isOpen: false, containerId: null, containerType: null, containerLabel: '', startValue: '', endValue: '', selectedNode: '', fieldType: 'input', fieldName: '', expression: '', snapshotNodes: [], snapshotEdges: [] });
+          setContainerFlowModal({ isOpen: false, containerId: null, containerType: null, containerLabel: '', startValue: '', endValue: '', stepValue: '', selectedNode: '', fieldType: 'input', fieldName: '', expression: '', snapshotNodes: [], snapshotEdges: [] });
         }}
         containerId={containerFlowModal.containerId}
         containerType={containerFlowModal.containerType}
@@ -2721,6 +2728,7 @@ export default function App() {
         onSave={handleContainerFlowSave}
         initialStartValue={containerFlowModal.startValue}
         initialEndValue={containerFlowModal.endValue}
+        initialStepValue={containerFlowModal.stepValue}
         initialSelectedNode={containerFlowModal.selectedNode}
         initialFieldType={containerFlowModal.fieldType}
         initialFieldName={containerFlowModal.fieldName}
@@ -2747,6 +2755,11 @@ export default function App() {
                 .map((output: any) => ({
                   name: output.name || output.englishName || output.koreanName
                 })),
+              // CallDO/Process의 실제 IO는 연결 IDO에서 fetch해야 하므로 참조 정보를 함께 전달
+              ido: n.data?.ido ? {
+                componentId: n.data.ido.componentId || '',
+                type: n.data.ido.type || 'IMO',
+              } : undefined,
             }))
         }
       />

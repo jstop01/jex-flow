@@ -6,7 +6,7 @@ import { Node, Edge } from 'reactflow';
  * 새 필드 추가 시 반드시 여기에도 추가할 것!
  */
 const SAVE_DATA_FIELDS: Record<string, string[]> = {
-  Start:     ['label', 'isStart', 'inputMessage', 'outputMessage'],
+  Start:     ['label', 'isStart', 'inputMessage', 'outputMessage', 'outputs'],
   End:       ['label', 'isEnd', 'mappings'],
   Variable:  ['label', 'variableName', 'expression', 'mappings'],
   CallDO:    ['label', 'ido', 'returnType', 'code', 'codeName', 'description', 'returnTypeOptions', 'mappings'],

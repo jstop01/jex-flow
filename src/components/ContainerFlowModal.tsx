@@ -54,9 +54,10 @@ interface ContainerFlowModalProps {
   initialNodes: Node[];
   initialEdges: Edge[];
   onSave: (nodes: Node[], edges: Edge[], loopData?: LoopData) => void;
-  // For node options (시작값, 종료값)
+  // For node options (시작값, 종료값, 증감값)
   initialStartValue?: string;
   initialEndValue?: string;
+  initialStepValue?: string;
   // ForEach node options (노드 선택, 구분, 필드명)
   initialSelectedNode?: string;
   initialFieldType?: 'input' | 'output';
@@ -71,6 +72,7 @@ export interface LoopData {
   // For node
   startValue?: string;
   endValue?: string;
+  stepValue?: string;
   // ForEach node
   selectedNode?: string;
   fieldType?: 'input' | 'output';
@@ -216,6 +218,11 @@ const getInitialNodes = (containerId: string, initialNodes: Node[]): Node[] => {
   if (existingStart && !isFirstOpen) {
     startNode.position = { ...existingStart.position };
   }
+  // 내부 start의 outputs(ForEach 순회 대상 노드의 output이 세팅됨)를 재진입 시에도 보존한다.
+  // (하드코딩 data로 덮어쓰면 저장했던 outputs가 유실되므로 기존 값을 이어받음)
+  if (existingStart && (existingStart.data as any)?.outputs) {
+    (startNode.data as any).outputs = (existingStart.data as any).outputs;
+  }
   if (existingEnd && !isFirstOpen) {
     endNode.position = { ...existingEnd.position };
   }
@@ -305,6 +312,8 @@ interface FlowCanvasProps {
   onEdgesUpdate: (edges: Edge[]) => void;
   availableNodes?: AvailableNodeInfo[];
   containerType?: 'Method' | 'While' | 'For' | 'ForEach' | null;
+  // ForEach: 순회 대상 노드의 output(연결 IDO 스키마). 저장 전에도 내부 start의 소스 필드로 라이브 표시하기 위함.
+  foreachStartOutputs?: Array<{ name: string; fieldType?: string; children?: any }>;
 }
 
 // FlowCanvas에서 노출하는 메서드들
@@ -317,7 +326,7 @@ export interface FlowCanvasHandle {
   getEdges: () => Edge[];
 }
 
-const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId, initialNodes: propsInitialNodes, initialEdges: propsInitialEdges, onNodesUpdate, onEdgesUpdate, availableNodes = [], containerType: canvasContainerType = null }, ref) => {
+const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId, initialNodes: propsInitialNodes, initialEdges: propsInitialEdges, onNodesUpdate, onEdgesUpdate, availableNodes = [], containerType: canvasContainerType = null, foreachStartOutputs = [] }, ref) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [contextMenu, setContextMenu] = useState<{ top: number; left: number; flowPosition: { x: number; y: number } } | null>(null);
@@ -399,6 +408,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
     containerLabel: string;
     startValue: string;
     endValue: string;
+    stepValue: string;
     selectedNode: string;
     fieldType: 'input' | 'output';
     fieldName: string;
@@ -410,6 +420,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
     containerLabel: '',
     startValue: '',
     endValue: '',
+    stepValue: '',
     selectedNode: '',
     fieldType: 'input',
     fieldName: '',
@@ -486,6 +497,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
           containerLabel: node.data.label || (node.type === 'Method' ? 'Method' : 'Loop'),
           startValue: node.data.startValue || '',
           endValue: node.data.endValue || '',
+          stepValue: node.data.stepValue || '',
           selectedNode: node.data.selectedNode || '',
           fieldType: node.data.fieldType || 'input',
           fieldName: node.data.fieldName || '',
@@ -1024,6 +1036,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
         containerLabel: node.data.label || (node.type === 'Method' ? 'Method' : 'Loop'),
         startValue: node.data.startValue || '',
         endValue: node.data.endValue || '',
+        stepValue: node.data.stepValue || '',
         selectedNode: node.data.selectedNode || '',
         fieldType: node.data.fieldType || 'input',
         fieldName: node.data.fieldName || '',
@@ -1137,6 +1150,13 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
     //    (nodes state/저장 data는 불변 — 매핑 모달용 임시 객체에만 반영)
     const internal = nodes.filter(n => !n.parentId).map(n => {
       const conv = convertNode(n);
+      // ForEach 내부 start: 컨테이너 저장 전이라 outputs가 비어 있으면, 순회 대상 노드의 output
+      // (foreachStartOutputs, 연결 IDO 스키마)을 표시 시점에 주입해 매핑 소스로 바로 쓸 수 있게 한다.
+      // AvailableNodeInfo(매핑 모달용 임시 객체)에만 반영 — nodes state/저장 data는 불변.
+      if (n.id === `${containerId}-start` && (conv.outputs?.length ?? 0) === 0 && foreachStartOutputs.length > 0) {
+        conv.outputs = foreachStartOutputs as any;
+        conv.inputs = foreachStartOutputs as any;
+      }
       // 내부 start/end 및 일반 자식 노드에 containerId를 parentId로 부여
       return { ...conv, parentId: containerId };
     });
@@ -1176,7 +1196,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
       : [];
 
     return [...internal, ...external, ...bridge];
-  }, [nodes, propsInitialNodes, containerId]);
+  }, [nodes, propsInitialNodes, containerId, foreachStartOutputs]);
 
   // 매핑 모달에 전달할 edges: 서브 내부 edges + 외부 edges (upstream traversal 확장용)
   const mappingEdges = useMemo(() => {
@@ -1349,6 +1369,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
       if (loopData && containerType === 'For') {
         updateNodeData(containerId, 'startValue', loopData.startValue || '');
         updateNodeData(containerId, 'endValue', loopData.endValue || '');
+        updateNodeData(containerId, 'stepValue', loopData.stepValue || '');
       } else if (loopData && containerType === 'ForEach') {
         // While과 동일 패턴: expression 하나만 저장
         updateNodeData(containerId, 'expression', loopData.expression || '');
@@ -1364,6 +1385,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
       containerLabel: '',
       startValue: '',
       endValue: '',
+      stepValue: '',
       selectedNode: '',
       fieldType: 'input',
       fieldName: '',
@@ -1674,6 +1696,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
           containerLabel: '',
           startValue: '',
           endValue: '',
+          stepValue: '',
           selectedNode: '',
           fieldType: 'input',
           fieldName: '',
@@ -1687,6 +1710,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
         onSave={handleNestedContainerSave}
         initialStartValue={nestedContainerModal.startValue}
         initialEndValue={nestedContainerModal.endValue}
+        initialStepValue={nestedContainerModal.stepValue}
         initialSelectedNode={nestedContainerModal.selectedNode}
         initialFieldType={nestedContainerModal.fieldType}
         initialFieldName={nestedContainerModal.fieldName}
@@ -1710,6 +1734,7 @@ export const ContainerFlowModal = ({
   onSave,
   initialStartValue = '',
   initialEndValue = '',
+  initialStepValue = '',
   initialSelectedNode = '',
   initialFieldType = 'input',
   initialFieldName = '',
@@ -1784,6 +1809,21 @@ export const ContainerFlowModal = ({
   // For node state (시작값, 종료값)
   const [startValue, setStartValue] = useState(initialStartValue);
   const [endValue, setEndValue] = useState(initialEndValue);
+  const [stepValue, setStepValue] = useState(initialStepValue);
+  // For: 시작/종료 값을 노드 참조로 지정할지 여부(체크 시 노드 선택 콤보박스, 미체크 시 숫자 입력).
+  // 별도 JSON 태그를 추가하지 않고(S010) start/end 문자열 내용으로 상태를 복원한다.
+  const [startIsNode, setStartIsNode] = useState(false);
+  const [endIsNode, setEndIsNode] = useState(false);
+  const [startNodeDropdownOpen, setStartNodeDropdownOpen] = useState(false);
+  const [endNodeDropdownOpen, setEndNodeDropdownOpen] = useState(false);
+  // For: 값 출처(숫자/노드) 모드 선택 드롭다운 열림 상태
+  const [startModeOpen, setStartModeOpen] = useState(false);
+  const [endModeOpen, setEndModeOpen] = useState(false);
+  // For: 노드 모드일 때 선택 노드의 필드(어떤 데이터를 값으로 쓸지) 선택
+  const [startFieldOpen, setStartFieldOpen] = useState(false);
+  const [startNodeFields, setStartNodeFields] = useState<Array<{ name: string; fieldType?: string; io?: string }>>([]);
+  const [endFieldOpen, setEndFieldOpen] = useState(false);
+  const [endNodeFields, setEndNodeFields] = useState<Array<{ name: string; fieldType?: string; io?: string }>>([]);
 
   // ForEach node state (노드 선택, 구분, 필드명)
   const [selectedNode, setSelectedNode] = useState(initialSelectedNode);
@@ -1801,8 +1841,11 @@ export const ContainerFlowModal = ({
   const [quickSelectField, setQuickSelectField] = useState('');
   const [quickNodeDropdownOpen, setQuickNodeDropdownOpen] = useState(false);
   const [quickFieldDropdownOpen, setQuickFieldDropdownOpen] = useState(false);
-  const [quickFetchedOutputs, setQuickFetchedOutputs] = useState<Array<{ name: string; fieldType?: string }>>([]);
+  const [quickFetchedOutputs, setQuickFetchedOutputs] = useState<Array<{ name: string; fieldType?: string; children?: any }>>([]);
   const [quickFetchLoading, setQuickFetchLoading] = useState(false);
+  // ForEach: 순회 대상으로 선택한 노드의 output 전체(children 포함)를 보관 → 저장 시 내부 start의 outputs로 세팅.
+  // key=nodeId, value=해당 노드 output 필드 배열(name/fieldType/children)
+  const quickNodeOutputsRef = useRef<Record<string, any[]>>({});
 
   // While node state (expression)
   const [expression, setExpression] = useState(initialExpression);
@@ -1812,19 +1855,34 @@ export const ContainerFlowModal = ({
     if (isOpen) {
       setStartValue(initialStartValue || '');
       setEndValue(initialEndValue || '');
+      setStepValue(initialStepValue || '');
+      // For: 저장된 값이 숫자면 숫자 입력(미체크), 비어있지 않은 비숫자면 노드 참조(체크)로 복원.
+      const sv = initialStartValue || '';
+      const ev = initialEndValue || '';
+      setStartIsNode(sv !== '' && isNaN(Number(sv)));
+      setEndIsNode(ev !== '' && isNaN(Number(ev)));
+      setStartNodeDropdownOpen(false);
+      setEndNodeDropdownOpen(false);
+      setStartModeOpen(false);
+      setEndModeOpen(false);
+      setStartFieldOpen(false);
+      setEndFieldOpen(false);
       setSelectedNode(initialSelectedNode || '');
       setFieldType((initialFieldType as 'input' | 'output') || 'input');
       setFieldName(initialFieldName || '');
       setExpression(initialExpression || '');
       setFetchedIO({ inputs: [], outputs: [] });
-      // 보조 UI 초기화
-      setQuickSelectNode('');
-      setQuickSelectField('');
+      // 보조 UI 초기화: 재진입 시 저장된 expression("nodeId" 또는 "nodeId.field")에서
+      // 순회 대상 노드/필드를 복원해 헤더 표시 및 output 재조회(ref 재생성)가 되게 한다.
+      const expr = initialExpression || '';
+      const dot = expr.indexOf('.');
+      setQuickSelectNode(dot >= 0 ? expr.slice(0, dot) : expr);
+      setQuickSelectField(dot >= 0 ? expr.slice(dot + 1) : '');
       setQuickNodeDropdownOpen(false);
       setQuickFieldDropdownOpen(false);
       setQuickFetchedOutputs([]);
     }
-  }, [isOpen, initialStartValue, initialEndValue, initialSelectedNode, initialFieldType, initialFieldName, initialExpression]);
+  }, [isOpen, initialStartValue, initialEndValue, initialStepValue, initialSelectedNode, initialFieldType, initialFieldName, initialExpression]);
 
   // ForEach: 노드 선택 변경 시 해당 노드의 IO를 API로 조회
   useEffect(() => {
@@ -1856,6 +1914,49 @@ export const ContainerFlowModal = ({
     }
   }, [selectedNode, containerType, initialNodes, availableNodes]);
 
+  // For: 값이 노드 모드일 때, 선택 노드의 input/output 필드 목록 조회 (어떤 데이터를 값으로 쓸지 선택용)
+  const fetchForNodeFields = useCallback((nodeId: string, setFields: (f: Array<{ name: string; fieldType?: string; io?: string }>) => void) => {
+    const av = availableNodes.find(n => n.id === nodeId);
+    // ido는 availableNodes 또는 실제 노드(data.ido)에서 확보 (CallDO/Process는 연결 IDO에서 fetch 필요)
+    const fullNode = initialNodes.find(n => n.id === nodeId);
+    const ido = (av as any)?.ido || (fullNode?.data as any)?.ido;
+    if (ido && ido.componentId) {
+      fetchComponentIO(ido.componentId, ido.type || 'IDO')
+        .then(result => {
+          const ins = result.inputs
+            .map(f => ({ name: f.englishName || f.name || '', fieldType: f.fieldType, io: 'INPUT' }))
+            .filter(f => f.name);
+          const outs = result.outputs
+            .map(f => ({ name: f.englishName || f.name || '', fieldType: f.fieldType, io: 'OUTPUT' }))
+            .filter(f => f.name);
+          setFields([...ins, ...outs]);
+        })
+        .catch(() => setFields([]));
+    } else {
+      const ins = (av?.inputs || []).map(f => ({ name: f.name, io: 'INPUT' }));
+      const outs = (av?.outputs || []).map(f => ({ name: f.name, io: 'OUTPUT' }));
+      setFields([...ins, ...outs]);
+    }
+  }, [availableNodes, initialNodes]);
+
+  const startNodeIdForFields = startIsNode ? (startValue || '').split('.')[0] : '';
+  useEffect(() => {
+    if (containerType !== 'For' || !startIsNode || !startNodeIdForFields) {
+      setStartNodeFields([]);
+      return;
+    }
+    fetchForNodeFields(startNodeIdForFields, setStartNodeFields);
+  }, [containerType, startIsNode, startNodeIdForFields, fetchForNodeFields]);
+
+  const endNodeIdForFields = endIsNode ? (endValue || '').split('.')[0] : '';
+  useEffect(() => {
+    if (containerType !== 'For' || !endIsNode || !endNodeIdForFields) {
+      setEndNodeFields([]);
+      return;
+    }
+    fetchForNodeFields(endNodeIdForFields, setEndNodeFields);
+  }, [containerType, endIsNode, endNodeIdForFields, fetchForNodeFields]);
+
   // ForEach 빠른 선택: quickSelectNode 변경 시 outputs(fieldType 포함) 조회
   useEffect(() => {
     if (!quickSelectNode || containerType !== 'ForEach') {
@@ -1868,14 +1969,24 @@ export const ContainerFlowModal = ({
 
     const fullNode = currentNodesRef.current.find(n => n.id === quickSelectNode)
       || initialNodes.find(n => n.id === quickSelectNode);
+    // 외부 노드(순회 대상 CallDO 등)는 내부 노드 목록에 없고 availableNodes에만 존재.
+    // convertNode가 external 노드에도 ido를 실어주므로 availableNodes의 ido도 fallback으로 사용.
+    const avNodeForIdo = availableNodes.find(n => n.id === quickSelectNode);
 
-    const ido = fullNode?.data?.ido;
+    const ido = fullNode?.data?.ido || (avNodeForIdo as any)?.ido;
     if (ido && ido.componentId) {
       fetchComponentIO(ido.componentId, ido.type || 'IDO')
         .then(result => {
+          // 저장 시 내부 start로 넘길 output 전체(children 등 원본 스키마 보존)를 ref에 보관
+          quickNodeOutputsRef.current[quickSelectNode] = result.outputs.map(f => ({
+            name: f.englishName || f.name || '',
+            fieldType: f.fieldType,
+            children: (f as any).children,
+          })).filter(f => f.name);
           const mapped = result.outputs.map(f => ({
             name: f.englishName || f.name || '',
             fieldType: f.fieldType,
+            children: (f as any).children,
           })).filter(f => f.name);
           setQuickFetchedOutputs(mapped);
         })
@@ -1884,7 +1995,8 @@ export const ContainerFlowModal = ({
     } else {
       // availableNodes fallback
       const avNode = availableNodes.find(n => n.id === quickSelectNode);
-      const mapped = (avNode?.outputs || []).map(f => ({ name: f.name, fieldType: undefined }));
+      quickNodeOutputsRef.current[quickSelectNode] = (avNode?.outputs || []).map(f => ({ ...f }));
+      const mapped = (avNode?.outputs || []).map(f => ({ name: f.name, fieldType: (f as any).fieldType, children: (f as any).children }));
       setQuickFetchedOutputs(mapped);
       setQuickFetchLoading(false);
     }
@@ -1900,6 +2012,25 @@ export const ContainerFlowModal = ({
     // RECORD 필드가 없으면 전체 outputs 제공 (노드 자체 순회 지원)
     return recFields.length > 0 ? recFields : quickFetchedOutputs;
   }, [quickFetchedOutputs]);
+
+  // ForEach: 내부 start에 라이브로 표시할 output.
+  // - 필드 미선택: 순회 대상 노드 output 전체.
+  // - 필드 선택(quickSelectField): 그 RECORD 필드의 하위 스키마(children)만 (순회 단위 = 그 필드의 한 항목).
+  const foreachStartLiveOutputs = useMemo(() => {
+    if (containerType !== 'ForEach') return undefined;
+    if (quickSelectField) {
+      const sel = quickFetchedOutputs.find(o => o.name === quickSelectField);
+      const ch = (sel as any)?.children;
+      if (ch && ch.length > 0) {
+        return ch
+          .map((c: any) => ({ name: c.englishName || c.name || '', fieldType: c.fieldType, children: c.children }))
+          .filter((c: any) => c.name);
+      }
+      // 하위 스키마가 없는(스칼라) 필드면 그 필드 하나만
+      return sel ? [{ name: sel.name, fieldType: sel.fieldType }] : [];
+    }
+    return quickFetchedOutputs;
+  }, [containerType, quickSelectField, quickFetchedOutputs]);
 
   // ForEach 빠른 선택: 노드 선택 시 expression 자동 채움 핸들러
   const handleQuickNodeSelect = useCallback((nodeId: string) => {
@@ -2002,22 +2133,69 @@ export const ContainerFlowModal = ({
     // parentId가 없는 노드만 현재 containerId 적용
     // 주의: `-start`/`-end`로 끝나더라도 중첩 컨테이너(node3-start 등)의 경우
     //       parentId가 'node3' 등으로 설정되어 있으므로 그대로 보존해야 함
+    // ForEach: 순회 대상의 output을 내부 start(`${containerId}-start`)의 outputs로 세팅.
+    // expression은 "nodeId"(노드 전체 순회) 또는 "nodeId.fieldName"(특정 RECORD 필드 순회) 형태.
+    // - 필드가 없으면 노드 output 전체를 start에 세팅.
+    // - 필드가 있으면 그 RECORD 필드의 하위 스키마(children)만 start에 세팅(순회 단위가 그 필드의 한 항목이므로).
+    // (selectedNode state는 재오픈 시 리셋되므로 expression 파싱이 더 견고)
+    let forEachStartOutputs: any[] | null = null;
+    if (containerType === 'ForEach' && expression) {
+      const dot = expression.indexOf('.');
+      const srcNodeId = dot >= 0 ? expression.slice(0, dot) : expression;
+      const fieldName = dot >= 0 ? expression.slice(dot + 1) : '';
+      // 1) 순회 대상 노드의 output 전체 확보
+      let nodeOutputs: any[] | null = null;
+      const fromRef = quickNodeOutputsRef.current[srcNodeId];
+      if (fromRef && fromRef.length > 0) {
+        nodeOutputs = fromRef;
+      } else {
+        const src = initialNodes.find(n => n.id === srcNodeId);
+        const srcOut = (src?.data as any)?.outputs;
+        if (srcOut && srcOut.length > 0) {
+          nodeOutputs = srcOut;
+        } else {
+          const av = availableNodes.find(n => n.id === srcNodeId);
+          if (av?.outputs && av.outputs.length > 0) nodeOutputs = av.outputs;
+        }
+      }
+      // 2) 필드가 지정되면 그 필드의 children만, 아니면 노드 output 전체
+      if (nodeOutputs && fieldName) {
+        const sel = nodeOutputs.find((o: any) => (o.name || o.englishName) === fieldName);
+        const ch = sel?.children;
+        if (ch && ch.length > 0) {
+          forEachStartOutputs = ch
+            .map((c: any) => ({ name: c.englishName || c.name || '', fieldType: c.fieldType, children: c.children }))
+            .filter((c: any) => c.name);
+        } else if (sel) {
+          forEachStartOutputs = [{ name: sel.name || sel.englishName, fieldType: sel.fieldType }];
+        } else {
+          forEachStartOutputs = nodeOutputs;
+        }
+      } else {
+        forEachStartOutputs = nodeOutputs;
+      }
+    }
+
     const restoredNodes = latestNodes.map(n => {
       const hasNestedParent = n.parentId && n.parentId !== containerId;
-
-      return {
+      const base = {
         ...n,
         parentId: hasNestedParent ? n.parentId : containerId,
         extent: 'parent' as const,
         zIndex: 1000,
         hidden: true, // 항상 숨김 상태로 저장 (toggleGroupExpanded에서만 unhide)
       };
+      // 내부 start 노드면 순회 대상 노드의 output을 outputs로 세팅
+      if (forEachStartOutputs && n.id === `${containerId}-start`) {
+        return { ...base, data: { ...base.data, outputs: forEachStartOutputs } };
+      }
+      return base;
     });
 
     // Include loop data for For/ForEach/While
     let loopData: LoopData | undefined;
     if (containerType === 'For') {
-      loopData = { startValue, endValue };
+      loopData = { startValue, endValue, stepValue };
     } else if (containerType === 'ForEach') {
       // While과 동일 패턴: expression 단일 입력으로 통합
       loopData = { expression };
@@ -2028,7 +2206,7 @@ export const ContainerFlowModal = ({
     // onSave 콜백(App.tsx handleContainerFlowSave)에서 직접 모달을 닫음
     // 취소 시에는 onClose가 스냅샷을 복원하므로, 저장 경로에서는 onClose를 호출하지 않음
     onSave(restoredNodes, latestEdges, loopData);
-  }, [containerId, onSave, containerType, startValue, endValue, selectedNode, fieldType, fieldName, expression]);
+  }, [containerId, onSave, containerType, startValue, endValue, stepValue, selectedNode, fieldType, fieldName, expression, initialNodes, availableNodes]);
 
   const getTypeConfig = () => {
     switch (containerType) {
@@ -2105,31 +2283,195 @@ export const ContainerFlowModal = ({
             </div>
           )}
 
-          {/* For Node - 시작값, 종료값 입력 */}
-          {containerType === 'For' && (
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500 font-medium">시작 값</span>
-                <input
-                  type="text"
-                  value={startValue}
-                  onChange={(e) => setStartValue(e.target.value)}
-                  placeholder="0"
-                  className="w-20 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-[#5277f7] focus:ring-2 focus:ring-blue-100 bg-white"
-                />
+          {/* For Node - 시작값, 종료값 입력
+              체크박스 체크 시: 노드 선택 콤보박스 / 미체크 시: 숫자 입력 */}
+          {containerType === 'For' && (() => {
+            // 시작/종료 값으로 참조 가능한 노드: 이 컨테이너 자신, 어떤 컨테이너든 내부 start/end
+            // (`*-start`/`*-end`), 그리고 컨테이너류(For/ForEach/While/Method)는 모두 제외.
+            const CONTAINER_TYPES = ['For', 'ForEach', 'While', 'Method'];
+            const forSourceNodes = availableNodes.filter(node =>
+              node.id !== containerId &&
+              !node.id.endsWith('-start') &&
+              !node.id.endsWith('-end') &&
+              !CONTAINER_TYPES.includes(node.type)
+            );
+            // 값 출처 결합 필드(디자인 C): 모드 프리픽스(숫자 ▾ / 노드 ▾) + 값 컨트롤을 한 필드처럼 붙임.
+            // 왼쪽 프리픽스에서 모드를 고르면 오른쪽이 숫자 입력 ↔ 노드 콤보박스로 바뀐다.
+            const renderValueField = (
+              isNode: boolean,
+              setIsNode: (v: boolean) => void,
+              value: string,
+              setValue: (v: string) => void,
+              modeOpen: boolean,
+              setModeOpen: (v: boolean) => void,
+              nodeOpen: boolean,
+              setNodeOpen: (v: boolean) => void,
+              placeholder: string,
+              fieldOpen: boolean,
+              setFieldOpen: (v: boolean) => void,
+              nodeFields: Array<{ name: string; fieldType?: string; io?: string }>,
+            ) => (
+              // C1: 하나의 흰 카드(테두리+은은한 그림자) 안에 프리픽스+값. 프리픽스는 세로 구분선으로 나눔.
+              <div className="inline-flex items-stretch bg-white border border-slate-300 rounded-xl shadow-sm focus-within:border-[#5277f7] focus-within:ring-2 focus-within:ring-blue-100 transition-colors" style={{ height: 42 }}>
+                {/* 모드 프리픽스 */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    className="h-full flex items-center text-xs font-medium text-slate-600 hover:bg-slate-100 border-r border-slate-200 transition-colors"
+                    style={{ gap: 6, padding: '0 14px', backgroundColor: '#f6f8fb', whiteSpace: 'nowrap', borderTopLeftRadius: 11, borderBottomLeftRadius: 11 }}
+                    onClick={() => { setModeOpen(!modeOpen); setNodeOpen(false); }}
+                    title="값 출처 선택 (직접입력 / 노드)"
+                  >
+                    <span>{isNode ? '노드' : '직접입력'}</span>
+                    <ChevronDown size={11} className={`text-[#9aa6b8] transition-transform duration-200 ${modeOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {modeOpen && (
+                    <div className="absolute top-full left-0 mt-1.5 bg-white rounded-lg shadow-xl border border-slate-200 py-1" style={{ zIndex: 99999, minWidth: 96, whiteSpace: 'nowrap' }}>
+                      <div
+                        className={`px-3 py-1.5 text-sm cursor-pointer transition-colors ${!isNode ? 'bg-blue-50 text-[#5277f7] font-medium' : 'hover:bg-slate-50 text-slate-700'}`}
+                        style={{ whiteSpace: 'nowrap', wordBreak: 'keep-all' }}
+                        onClick={() => { setIsNode(false); setValue(''); setNodeOpen(false); setModeOpen(false); }}
+                      >
+                        직접입력
+                      </div>
+                      <div
+                        className={`px-3 py-1.5 text-sm cursor-pointer transition-colors ${isNode ? 'bg-blue-50 text-[#5277f7] font-medium' : 'hover:bg-slate-50 text-slate-700'}`}
+                        style={{ whiteSpace: 'nowrap', wordBreak: 'keep-all' }}
+                        onClick={() => { setIsNode(true); setValue(''); setNodeOpen(false); setModeOpen(false); }}
+                      >
+                        노드
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* 값 컨트롤 (테두리 없음 — 바깥 카드가 테두리 담당) */}
+                {!isNode ? (
+                  <input
+                    type="text"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    placeholder={placeholder}
+                    className="h-full text-xs text-slate-700 bg-transparent border-0 outline-none rounded-r-xl"
+                    style={{ width: 110, padding: '0 14px' }}
+                  />
+                ) : (() => {
+                  const nodeId = (value || '').split('.')[0];
+                  const fieldName = (value || '').split('.').slice(1).join('.');
+                  return (
+                  <>
+                    {/* 노드 선택 콤보 (노드명만 표시) */}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        className="h-full flex items-center justify-between text-xs text-slate-700 hover:bg-slate-50 transition-colors"
+                        style={{ width: 160, gap: 6, padding: '0 14px' }}
+                        onClick={() => { setNodeOpen(!nodeOpen); setModeOpen(false); setFieldOpen(false); }}
+                        title="노드 선택"
+                      >
+                        <span className="truncate">{nodeId || <span className="text-slate-400">노드 선택</span>}</span>
+                        <ChevronDown size={12} className={`text-slate-400 shrink-0 transition-transform duration-200 ${nodeOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {nodeOpen && (
+                        <div className="absolute top-full left-0 mt-1.5 bg-white rounded-lg shadow-xl border border-slate-200 py-1 min-w-[160px] max-h-48 overflow-auto" style={{ zIndex: 99999 }}>
+                          {forSourceNodes.length > 0 ? (
+                            forSourceNodes.map(node => (
+                              <div
+                                key={node.id}
+                                className={`px-3 py-1.5 text-xs cursor-pointer transition-colors ${
+                                  nodeId === node.id ? 'bg-blue-50 text-[#5277f7]' : 'hover:bg-slate-50 text-slate-700'
+                                }`}
+                                onClick={() => { setValue(node.id); setNodeOpen(false); setFieldOpen(false); }}
+                              >
+                                {node.id} <span className="text-slate-400">({node.type})</span>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="px-3 py-1.5 text-xs text-slate-400">선택 가능한 노드 없음</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {/* 필드 선택 콤보 (선택한 노드 안의 어떤 데이터를 값으로 쓸지) */}
+                    <div className="relative border-l border-[#dfe5ee]">
+                      <button
+                        type="button"
+                        disabled={!nodeId}
+                        className="h-full flex items-center justify-between text-xs text-slate-700 rounded-r-xl hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        style={{ width: 150, gap: 6, padding: '0 14px' }}
+                        onClick={() => { setFieldOpen(!fieldOpen); setNodeOpen(false); setModeOpen(false); }}
+                        title="필드 선택"
+                      >
+                        <span className="truncate">{fieldName || <span className="text-slate-400">필드 선택</span>}</span>
+                        <ChevronDown size={12} className={`text-slate-400 shrink-0 transition-transform duration-200 ${fieldOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {fieldOpen && (
+                        <div className="absolute top-full left-0 mt-1.5 bg-white rounded-lg shadow-xl border border-slate-200 py-1.5 min-w-[240px] max-h-64 overflow-y-auto overflow-x-hidden" style={{ zIndex: 99999 }}>
+                          {nodeFields.length > 0 ? (
+                            ['INPUT', 'OUTPUT'].map((io, gi) => {
+                              const group = nodeFields.filter(f => f.io === io);
+                              if (group.length === 0) return null;
+                              const isInput = io === 'INPUT';
+                              return (
+                                <div key={io} className={gi > 0 ? 'border-t-2 border-slate-100 mt-1 pt-1' : ''}>
+                                  <div
+                                    className={`flex items-center gap-1.5 px-4 py-1 text-[10px] font-bold tracking-wider select-none ${
+                                      isInput ? 'bg-blue-50 text-blue-500' : 'bg-emerald-50 text-emerald-600'
+                                    }`}
+                                    style={{ whiteSpace: 'nowrap' }}
+                                  >
+                                    <span className={`inline-block w-1.5 h-1.5 rounded-full ${isInput ? 'bg-blue-400' : 'bg-emerald-400'}`} />
+                                    {isInput ? 'INPUT MESSAGE' : 'OUTPUT MESSAGE'}
+                                  </div>
+                                  {group.map(f => (
+                                    <div
+                                      key={`${io}-${f.name}`}
+                                      className={`px-4 py-1 text-xs cursor-pointer transition-colors ${
+                                        fieldName === f.name ? 'bg-blue-50 text-[#5277f7]' : 'hover:bg-slate-50 text-slate-700'
+                                      }`}
+                                      style={{ whiteSpace: 'nowrap', wordBreak: 'keep-all' }}
+                                      onClick={() => { setValue(`${nodeId}.${f.name}`); setFieldOpen(false); }}
+                                    >
+                                      {f.name}{f.fieldType ? <span className="text-slate-400"> ({f.fieldType})</span> : null}
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <div className="px-3 py-1.5 text-xs text-slate-400">필드 없음</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                  );
+                })()}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500 font-medium">종료 값</span>
+            );
+            return (
+            <div className="flex items-center" style={{ gap: 36 }}>
+              <div className="flex items-center" style={{ gap: 12 }}>
+                <span className="text-xs text-slate-500 font-medium" style={{ whiteSpace: 'nowrap' }}>시작 값</span>
+                {renderValueField(startIsNode, setStartIsNode, startValue, setStartValue, startModeOpen, setStartModeOpen, startNodeDropdownOpen, setStartNodeDropdownOpen, '0', startFieldOpen, setStartFieldOpen, startNodeFields)}
+              </div>
+              <div className="flex items-center" style={{ gap: 12 }}>
+                <span className="text-xs text-slate-500 font-medium" style={{ whiteSpace: 'nowrap' }}>종료 값</span>
+                {renderValueField(endIsNode, setEndIsNode, endValue, setEndValue, endModeOpen, setEndModeOpen, endNodeDropdownOpen, setEndNodeDropdownOpen, '10', endFieldOpen, setEndFieldOpen, endNodeFields)}
+              </div>
+              <div className="flex items-center" style={{ gap: 12 }}>
+                <span className="text-xs text-slate-500 font-medium" style={{ whiteSpace: 'nowrap' }}>증감 값</span>
                 <input
                   type="text"
-                  value={endValue}
-                  onChange={(e) => setEndValue(e.target.value)}
-                  placeholder="10"
-                  className="w-20 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-[#5277f7] focus:ring-2 focus:ring-blue-100 bg-white"
+                  value={stepValue}
+                  onChange={(e) => setStepValue(e.target.value)}
+                  placeholder="1"
+                  className="text-xs text-slate-700 bg-white border border-slate-300 rounded-xl shadow-sm focus:outline-none focus:border-[#5277f7] focus:ring-2 focus:ring-blue-100 transition-colors"
+                  style={{ height: 42, width: 110, padding: '0 14px' }}
                 />
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* ForEach Node - 빠른 선택 보조 UI + expression 직접 입력 */}
           {containerType === 'ForEach' && (
@@ -2148,10 +2490,21 @@ export const ContainerFlowModal = ({
                   <span>{quickSelectNode ? `${quickSelectNode}` : '노드 선택'}</span>
                   <ChevronDown size={12} className={`text-slate-400 transition-transform duration-200 ${quickNodeDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
-                {quickNodeDropdownOpen && (
+                {quickNodeDropdownOpen && (() => {
+                  // ForEach 순회 대상 노드: 자기 자신(이 컨테이너), 어떤 컨테이너든 내부 start/end
+                  // (`*-start`/`*-end`), 그리고 컨테이너류(For/ForEach/While/Method)는 모두 제외.
+                  // 순회 대상은 무조건 외부의 실제 노드여야 한다.
+                  const CONTAINER_TYPES = ['For', 'ForEach', 'While', 'Method'];
+                  const forEachSourceNodes = availableNodes.filter(node =>
+                    node.id !== containerId &&
+                    !node.id.endsWith('-start') &&
+                    !node.id.endsWith('-end') &&
+                    !CONTAINER_TYPES.includes(node.type)
+                  );
+                  return (
                   <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-xl border border-slate-200 py-1 min-w-[160px] max-h-48 overflow-auto" style={{ zIndex: 99999 }}>
-                    {availableNodes.length > 0 ? (
-                      availableNodes.map(node => (
+                    {forEachSourceNodes.length > 0 ? (
+                      forEachSourceNodes.map(node => (
                         <button
                           key={node.id}
                           className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
@@ -2167,7 +2520,8 @@ export const ContainerFlowModal = ({
                       <div className="px-3 py-2 text-xs text-slate-400">선택 가능한 노드 없음</div>
                     )}
                   </div>
-                )}
+                  );
+                })()}
               </div>
 
               {/* 보조 UI: RECORD 필드 선택 드롭다운 (노드 선택 후 활성화) */}
@@ -2438,6 +2792,7 @@ export const ContainerFlowModal = ({
               onEdgesUpdate={updateCurrentEdges}
               availableNodes={availableNodes}
               containerType={containerType}
+              foreachStartOutputs={foreachStartLiveOutputs}
             />
           </ReactFlowProvider>
         </div>
