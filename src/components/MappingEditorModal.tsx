@@ -141,14 +141,14 @@ export const MappingEditorModal = ({
 
   // 선택된 타겟 필드 (매핑 목록 표시용)
   const [selectedTargetField, setSelectedTargetField] = useState<string | null>(null);
-  // 타겟 필드 상수 입력 팝오버: { fieldName(fieldPath), value } (JSON: sources[{nodeId:'CONSTANT', fieldName:값}] — 예약어 방식, 사용자 확정)
+  // 타겟 필드 상수 입력 팝오버: { fieldName(fieldPath), value } (JSON: sources[{nodeId:'@CONSTANT', fieldName:값}] — 예약어 방식; '@' 접두로 실제 노드ID와 충돌 방지, 사용자 확정)
   const [constPopover, setConstPopover] = useState<{ fieldName: string; value: string } | null>(null);
 
   // 해당 타겟 필드의 기존 상수값 조회
   const getConstantValue = useCallback((fieldName: string): string | null => {
     const m = mappings.find(mm => mm.targetNodeId === targetNodeId && mm.targetFieldName === fieldName
-      && mm.sources?.some(s => s.nodeId === 'CONSTANT'));
-    const src = m?.sources?.find(s => s.nodeId === 'CONSTANT');
+      && mm.sources?.some(s => s.nodeId === '@CONSTANT'));
+    const src = m?.sources?.find(s => s.nodeId === '@CONSTANT');
     return src ? src.fieldName : null;
   }, [mappings, targetNodeId]);
 
@@ -156,16 +156,16 @@ export const MappingEditorModal = ({
   const upsertConstant = useCallback((fieldName: string, value: string) => {
     setMappings(prev => {
       const idx = prev.findIndex(mm => mm.targetNodeId === targetNodeId && mm.targetFieldName === fieldName
-        && mm.sources?.some(s => s.nodeId === 'CONSTANT'));
+        && mm.sources?.some(s => s.nodeId === '@CONSTANT'));
       if (idx >= 0) {
         return prev.map((mm, i) => i !== idx ? mm : {
           ...mm,
-          sources: mm.sources.map(s => s.nodeId === 'CONSTANT' ? { ...s, fieldName: value } : s),
+          sources: mm.sources.map(s => s.nodeId === '@CONSTANT' ? { ...s, fieldName: value } : s),
         });
       }
       return [...prev, {
         id: `mapping-const-${Date.now()}`,
-        sources: [{ nodeId: 'CONSTANT', fieldName: value }],
+        sources: [{ nodeId: '@CONSTANT', fieldName: value }],
         targetNodeId: targetNodeId!,
         targetFieldName: fieldName,
       }];
@@ -177,7 +177,7 @@ export const MappingEditorModal = ({
     setMappings(prev => prev
       .map(mm => {
         if (!(mm.targetNodeId === targetNodeId && mm.targetFieldName === fieldName)) return mm;
-        const rest = (mm.sources || []).filter(s => s.nodeId !== 'CONSTANT');
+        const rest = (mm.sources || []).filter(s => s.nodeId !== '@CONSTANT');
         return rest.length === (mm.sources || []).length ? mm : { ...mm, sources: rest };
       })
       .filter(mm => (mm.sources || []).length > 0));
@@ -2570,7 +2570,7 @@ export const MappingEditorModal = ({
                               )}
 
                               {/* 소스 필드명 (CONSTANT 예약어는 상수로 표시) */}
-                              {source.nodeId === 'CONSTANT' ? (
+                              {source.nodeId === '@CONSTANT' ? (
                                 <span style={{ color: '#b45309', fontFamily: 'monospace', fontWeight: '500', fontSize: '13px', flex: 1 }}>
                                   상수 = <span style={{ fontWeight: '700' }}>"{source.fieldName}"</span>
                                 </span>
