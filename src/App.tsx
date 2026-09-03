@@ -2223,6 +2223,16 @@ export default function App() {
         // 화이트리스트로 정제 (CallDO/Process는 건너뛰기 — ido flat 변환이 import와 충돌)
         const isCallDOProcess = node.type === 'CallDO' || node.type === 'Process';
         const cleaned = isCallDOProcess ? node : cleanNodeForExport(node as any);
+        // cleanNodeForExport가 export용 rename(startValue→start 등)을 되적용하므로,
+        // import rename을 정제 후 한 번 더 적용해 내부 필드명(startValue/endValue)을 복원한다.
+        // (안 하면 재조회 후 저장 시 For '반복 범위 미설정' 오검증 발생)
+        if (renameMap && cleaned?.data) {
+          const d2 = { ...cleaned.data };
+          Object.entries(renameMap).forEach(([from, to]) => {
+            if (d2[from] !== undefined && d2[to] === undefined) { d2[to] = d2[from]; delete d2[from]; }
+          });
+          cleaned.data = d2;
+        }
         return {
           ...cleaned,
           data: {
