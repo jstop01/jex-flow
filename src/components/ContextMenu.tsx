@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Settings, Edit3, ArrowDownToLine, ArrowUpFromLine, Database } from 'lucide-react';
+import { Settings, Edit3, ArrowDownToLine, ArrowUpFromLine, Database, FileCode2 } from 'lucide-react';
 
 interface ContextMenuProps {
   top: number;
@@ -11,9 +11,10 @@ interface ContextMenuProps {
   onChangeId: (nodeId: string) => void;
   onInputMapping: () => void;
   onOutputMapping: () => void;
+  onMappingScript?: () => void; // CallDO 전용: 매핑 스크립트 편집
 }
 
-export const ContextMenu = ({ top, left, nodeId, nodeType, onClose, onIOSetting, onChangeId, onInputMapping, onOutputMapping }: ContextMenuProps) => {
+export const ContextMenu = ({ top, left, nodeId, nodeType, onClose, onIOSetting, onChangeId, onInputMapping, onOutputMapping, onMappingScript }: ContextMenuProps) => {
   const menuRef = useRef<HTMLDivElement>(null);
   // 입력 매핑 메뉴 노출 화이트리스트: CallDO 와 End 노드만 (그 외 노드들은 매핑 대상 아님)
   const isMappingEligible = nodeType === 'CallDO' || nodeType === 'End';
@@ -49,6 +50,19 @@ export const ContextMenu = ({ top, left, nodeId, nodeType, onClose, onIOSetting,
             <ArrowDownToLine size={14} className="text-emerald-500" />
             입력 매핑
           </button>
+          {/* 매핑 스크립트 - CallDO 전용, 입력 매핑과 같은 레벨(바로 아래) */}
+          {nodeType === 'CallDO' && onMappingScript && (
+            <button
+              onClick={() => {
+                onMappingScript();
+                onClose();
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+            >
+              <FileCode2 size={14} className="text-[#5277f7]" />
+              매핑 스크립트
+            </button>
+          )}
           <div className="border-t border-slate-100 my-1" />
         </>
       )}

@@ -258,6 +258,8 @@ export default function App() {
 
   // Mapping Context Menu and Modal State
   const [mappingContextMenu, setMappingContextMenu] = useState<{ top: number; left: number; nodeId: string } | null>(null);
+  // CallDO 매핑 스크립트 모달 (data.mappingScript)
+  const [mappingScriptModal, setMappingScriptModal] = useState<{ isOpen: boolean; nodeId: string | null; script: string }>({ isOpen: false, nodeId: null, script: '' });
   const [mappingModal, setMappingModal] = useState<{ isOpen: boolean; nodeId: string | null; mappingType: 'input' | 'output' }>({
     isOpen: false,
     nodeId: null,
@@ -343,6 +345,7 @@ export default function App() {
     startValue: string;
     endValue: string;
     stepValue: string;
+    operator: string;
     // ForEach node (노드 선택, 구분, 필드명)
     selectedNode: string;
     fieldType: 'input' | 'output';
@@ -360,6 +363,7 @@ export default function App() {
     startValue: '',
     endValue: '',
     stepValue: '',
+    operator: '',
     selectedNode: '',
     fieldType: 'input',
     fieldName: '',
@@ -944,6 +948,7 @@ export default function App() {
       const startVal = node.data.startValue ?? node.data.start ?? node.data.startVal ?? '';
       const endVal = node.data.endValue ?? node.data.end ?? node.data.endVal ?? '';
       const stepVal = node.data.stepValue ?? node.data.step ?? '';
+      const opVal = node.data.operator ?? '';
       setContainerFlowModal({
         isOpen: true,
         containerId: node.id,
@@ -952,6 +957,7 @@ export default function App() {
         startValue: startVal,
         endValue: endVal,
         stepValue: stepVal,
+        operator: opVal,
         selectedNode: node.data.selectedNode || '',
         fieldType: node.data.fieldType || 'input',
         fieldName: node.data.fieldName || '',
@@ -1491,6 +1497,7 @@ export default function App() {
       const startVal = node.data.startValue ?? node.data.start ?? node.data.startVal ?? '';
       const endVal = node.data.endValue ?? node.data.end ?? node.data.endVal ?? '';
       const stepVal = node.data.stepValue ?? node.data.step ?? '';
+      const opVal = node.data.operator ?? '';
       setContainerFlowModal({
         isOpen: true,
         containerId: node.id,
@@ -1499,6 +1506,7 @@ export default function App() {
         startValue: startVal,
         endValue: endVal,
         stepValue: stepVal,
+        operator: opVal,
         selectedNode: node.data.selectedNode || '',
         fieldType: node.data.fieldType || 'input',
         fieldName: node.data.fieldName || '',
@@ -1986,6 +1994,7 @@ export default function App() {
       updateNodeData(containerId, 'startValue', loopData.startValue || '');
       updateNodeData(containerId, 'endValue', loopData.endValue || '');
       updateNodeData(containerId, 'stepValue', loopData.stepValue || '');
+      updateNodeData(containerId, 'operator', loopData.operator || '<=');
     } else if (loopData && containerType === 'ForEach') {
       // While과 동일 패턴: expression 하나만 저장
       updateNodeData(containerId, 'expression', loopData.expression || '');
@@ -1994,7 +2003,7 @@ export default function App() {
     }
 
     // 저장 완료 후 모달 닫기 (스냅샷 복원 없이)
-    setContainerFlowModal({ isOpen: false, containerId: null, containerType: null, containerLabel: '', startValue: '', endValue: '', stepValue: '', selectedNode: '', fieldType: 'input', fieldName: '', expression: '', snapshotNodes: [], snapshotEdges: [] });
+    setContainerFlowModal({ isOpen: false, containerId: null, containerType: null, containerLabel: '', startValue: '', endValue: '', stepValue: '', operator: '', selectedNode: '', fieldType: 'input', fieldName: '', expression: '', snapshotNodes: [], snapshotEdges: [] });
   }, [containerFlowModal.containerId, containerFlowModal.containerType, nodes, setNodes, setEdges, updateNodeData]);
   const handleCodeSelect = useCallback((codeItem: any) => {
     if (selectedNodeId) {
@@ -2472,6 +2481,10 @@ export default function App() {
           onChangeId={handleChangeId}
           onInputMapping={handleInputMapping}
           onOutputMapping={handleOutputMapping}
+          onMappingScript={() => {
+            const n = nodes.find(nd => nd.id === contextMenu.nodeId);
+            setMappingScriptModal({ isOpen: true, nodeId: contextMenu.nodeId, script: (n?.data as any)?.mappingScript || '' });
+          }}
         />
       )}
 
@@ -2718,7 +2731,7 @@ export default function App() {
       <ContainerFlowModal
         isOpen={containerFlowModal.isOpen}
         onClose={() => {
-          setContainerFlowModal({ isOpen: false, containerId: null, containerType: null, containerLabel: '', startValue: '', endValue: '', stepValue: '', selectedNode: '', fieldType: 'input', fieldName: '', expression: '', snapshotNodes: [], snapshotEdges: [] });
+          setContainerFlowModal({ isOpen: false, containerId: null, containerType: null, containerLabel: '', startValue: '', endValue: '', stepValue: '', operator: '', selectedNode: '', fieldType: 'input', fieldName: '', expression: '', snapshotNodes: [], snapshotEdges: [] });
         }}
         containerId={containerFlowModal.containerId}
         containerType={containerFlowModal.containerType}
@@ -2729,6 +2742,7 @@ export default function App() {
         initialStartValue={containerFlowModal.startValue}
         initialEndValue={containerFlowModal.endValue}
         initialStepValue={containerFlowModal.stepValue}
+        initialOperator={containerFlowModal.operator}
         initialSelectedNode={containerFlowModal.selectedNode}
         initialFieldType={containerFlowModal.fieldType}
         initialFieldName={containerFlowModal.fieldName}
@@ -2762,6 +2776,21 @@ export default function App() {
               } : undefined,
             }))
         }
+      />
+
+      {/* CallDO 매핑 스크립트 모달 — Script 노드와 동일한 스크립트 편집기 재사용 (저장은 mappingScript 태그 한 개) */}
+      <ScriptEditModal
+        isOpen={mappingScriptModal.isOpen}
+        onClose={() => setMappingScriptModal({ isOpen: false, nodeId: null, script: '' })}
+        nodeId={mappingScriptModal.nodeId}
+        nodes={nodes}
+        edges={edges}
+        initialScriptContent={mappingScriptModal.script}
+        onSave={(_scriptType, _variableName, scriptContent) => {
+          if (mappingScriptModal.nodeId) updateNodeData(mappingScriptModal.nodeId, 'mappingScript', scriptContent);
+        }}
+        autocompleteData={autocompleteData}
+        onOpenAutocompleteManager={() => setAutocompleteManagerOpen(true)}
       />
 
       <JsonExportModal

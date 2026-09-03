@@ -141,6 +141,47 @@ export const MappingEditorModal = ({
 
   // 선택된 타겟 필드 (매핑 목록 표시용)
   const [selectedTargetField, setSelectedTargetField] = useState<string | null>(null);
+  // 타겟 필드 상수 입력 팝오버: { fieldName(fieldPath), value } (JSON: sources[{nodeId:'CONSTANT', fieldName:값}] — 예약어 방식, 사용자 확정)
+  const [constPopover, setConstPopover] = useState<{ fieldName: string; value: string } | null>(null);
+
+  // 해당 타겟 필드의 기존 상수값 조회
+  const getConstantValue = useCallback((fieldName: string): string | null => {
+    const m = mappings.find(mm => mm.targetNodeId === targetNodeId && mm.targetFieldName === fieldName
+      && mm.sources?.some(s => s.nodeId === 'CONSTANT'));
+    const src = m?.sources?.find(s => s.nodeId === 'CONSTANT');
+    return src ? src.fieldName : null;
+  }, [mappings, targetNodeId]);
+
+  // 상수 저장(upsert): 기존 CONSTANT 소스가 있으면 값 갱신, 없으면 새 매핑 추가
+  const upsertConstant = useCallback((fieldName: string, value: string) => {
+    setMappings(prev => {
+      const idx = prev.findIndex(mm => mm.targetNodeId === targetNodeId && mm.targetFieldName === fieldName
+        && mm.sources?.some(s => s.nodeId === 'CONSTANT'));
+      if (idx >= 0) {
+        return prev.map((mm, i) => i !== idx ? mm : {
+          ...mm,
+          sources: mm.sources.map(s => s.nodeId === 'CONSTANT' ? { ...s, fieldName: value } : s),
+        });
+      }
+      return [...prev, {
+        id: `mapping-const-${Date.now()}`,
+        sources: [{ nodeId: 'CONSTANT', fieldName: value }],
+        targetNodeId: targetNodeId!,
+        targetFieldName: fieldName,
+      }];
+    });
+  }, [targetNodeId]);
+
+  // 상수 삭제: CONSTANT 소스만 제거 (그 소스뿐이면 매핑째 제거)
+  const removeConstant = useCallback((fieldName: string) => {
+    setMappings(prev => prev
+      .map(mm => {
+        if (!(mm.targetNodeId === targetNodeId && mm.targetFieldName === fieldName)) return mm;
+        const rest = (mm.sources || []).filter(s => s.nodeId !== 'CONSTANT');
+        return rest.length === (mm.sources || []).length ? mm : { ...mm, sources: rest };
+      })
+      .filter(mm => (mm.sources || []).length > 0));
+  }, [targetNodeId]);
 
   // CallDO/Process 노드의 IO를 API로 동적 조회한 결과 캐시
   const [fetchedSourceIO, setFetchedSourceIO] = useState<{ inputs: FieldInfo[]; outputs: FieldInfo[] }>({ inputs: [], outputs: [] });
@@ -2265,6 +2306,71 @@ export const MappingEditorModal = ({
           </div>
         </div>
 
+        {/* 상수 입력 팝오버 (타겟 필드 상수 데이터) */}
+        {constPopover && (
+          <div
+            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}
+            onClick={() => setConstPopover(null)}
+          >
+            <div
+              style={{ backgroundColor: '#fff', borderRadius: 12, boxShadow: '0 20px 40px rgba(0,0,0,0.2)', width: 380, padding: 22 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#b45309', backgroundColor: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 999, padding: '2px 8px' }}>상수</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{constPopover.fieldName.split('.').pop()}</span>
+                <span style={{ fontSize: 11, color: '#94a3b8' }}>({constPopover.fieldName})</span>
+              </div>
+              <input
+                autoFocus
+                type="text"
+                value={constPopover.value}
+                onChange={(e) => setConstPopover({ ...constPopover, value: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && constPopover.value !== '') {
+                    upsertConstant(constPopover.fieldName, constPopover.value);
+                    setConstPopover(null);
+                  } else if (e.key === 'Escape') {
+                    setConstPopover(null);
+                  }
+                }}
+                placeholder="상수값 입력 (예: 001)"
+                style={{ width: '100%', height: 40, padding: '0 12px', fontSize: 13, border: '1px solid #cbd5e1', borderRadius: 8, outline: 'none' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
+                <div>
+                  {getConstantValue(constPopover.fieldName) != null && (
+                    <button
+                      type="button"
+                      onClick={() => { removeConstant(constPopover.fieldName); setConstPopover(null); }}
+                      style={{ fontSize: 13, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 4px' }}
+                    >
+                      상수 삭제
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setConstPopover(null)}
+                    style={{ fontSize: 13, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 12px' }}
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    disabled={constPopover.value === ''}
+                    onClick={() => { upsertConstant(constPopover.fieldName, constPopover.value); setConstPopover(null); }}
+                    style={{ fontSize: 13, fontWeight: 600, color: '#fff', backgroundColor: constPopover.value === '' ? '#c7d2fe' : '#5277f7', border: 'none', borderRadius: 8, cursor: constPopover.value === '' ? 'not-allowed' : 'pointer', padding: '8px 16px' }}
+                  >
+                    저장
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Mappings Summary - 타겟 필드 클릭 시에만 해당 필드에 연결된 매핑 표시 */}
         {(() => {
           // 선택된 타겟 필드가 없으면 표시하지 않음
@@ -2275,8 +2381,7 @@ export const MappingEditorModal = ({
             m => m.targetNodeId === targetNodeId && m.targetFieldName === selectedTargetField
           );
 
-          if (filteredMappings.length === 0) return null;
-
+          // 0건이어도 패널을 표시 (여기서 '상수 추가'로 상수 매핑을 만들 수 있음)
           return (
             <div
               style={{
@@ -2293,7 +2398,25 @@ export const MappingEditorModal = ({
                 <span style={{ fontSize: '14px', fontWeight: '600', color: '#1e40af', marginLeft: '8px' }}>
                   {selectedTargetField} 매핑 목록 ({filteredMappings.length}개)
                 </span>
+                {/* 상수 추가/수정 버튼 — 이 타겟 필드에 상수값을 매핑 */}
+                <button
+                  type="button"
+                  onClick={() => setConstPopover({ fieldName: selectedTargetField, value: getConstantValue(selectedTargetField) ?? '' })}
+                  style={{
+                    marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4,
+                    fontSize: 12, fontWeight: 600, padding: '4px 12px', borderRadius: 8,
+                    border: '1px solid #f59e0b', backgroundColor: '#fef3c7', color: '#b45309',
+                    cursor: 'pointer', whiteSpace: 'nowrap',
+                  }}
+                >
+                  {getConstantValue(selectedTargetField) != null ? '상수 수정' : '+ 상수 추가'}
+                </button>
               </div>
+              {filteredMappings.length === 0 && (
+                <div style={{ fontSize: 13, color: '#94a3b8', padding: '6px 2px' }}>
+                  연결된 매핑이 없습니다. 소스 필드를 드래그해 연결하거나, 상수 추가로 고정값을 지정하세요.
+                </div>
+              )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {filteredMappings.map((m, mappingIndex) => {
                   const isRecent = m.id === recentlyAddedId;
@@ -2446,10 +2569,16 @@ export const MappingEditorModal = ({
                                 </span>
                               )}
 
-                              {/* 소스 필드명 */}
+                              {/* 소스 필드명 (CONSTANT 예약어는 상수로 표시) */}
+                              {source.nodeId === 'CONSTANT' ? (
+                                <span style={{ color: '#b45309', fontFamily: 'monospace', fontWeight: '500', fontSize: '13px', flex: 1 }}>
+                                  상수 = <span style={{ fontWeight: '700' }}>"{source.fieldName}"</span>
+                                </span>
+                              ) : (
                               <span style={{ color: '#059669', fontFamily: 'monospace', fontWeight: '500', fontSize: '13px', flex: 1 }}>
                                 {source.nodeId}.<span style={{ fontWeight: '700' }}>{source.fieldName}</span>
                               </span>
+                              )}
 
                               {/* 소스별 변환 배지 */}
                               {source.transform && source.transform.type !== 'none' && (

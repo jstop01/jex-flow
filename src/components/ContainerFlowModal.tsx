@@ -13,7 +13,7 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { X, Save, FolderOpen, Repeat, Repeat2, RotateCw, Workflow, Database, Split, GitMerge, AlertCircle, Ban, Layers, Phone, Code, ChevronDown, Settings, Trash2, Edit3, Undo2, Redo2, ArrowDownToLine, ArrowRightLeft } from 'lucide-react';
+import { X, Save, FolderOpen, Repeat, Repeat2, RotateCw, Workflow, Database, Split, GitMerge, AlertCircle, Ban, Layers, Phone, Code, ChevronDown, Settings, Trash2, Edit3, Undo2, Redo2, ArrowDownToLine, ArrowRightLeft, FileCode2 } from 'lucide-react';
 import { IOSettingModal } from './IOSettingModal';
 import { IDOSearchModal, ComponentItem } from './IDOSearchModal';
 import { fetchComponentIO } from '../services/componentService';
@@ -58,6 +58,7 @@ interface ContainerFlowModalProps {
   initialStartValue?: string;
   initialEndValue?: string;
   initialStepValue?: string;
+  initialOperator?: string;
   // ForEach node options (노드 선택, 구분, 필드명)
   initialSelectedNode?: string;
   initialFieldType?: 'input' | 'output';
@@ -73,6 +74,7 @@ export interface LoopData {
   startValue?: string;
   endValue?: string;
   stepValue?: string;
+  operator?: string;   // 비교 연산자 (<=, =, <, >, >=)
   // ForEach node
   selectedNode?: string;
   fieldType?: 'input' | 'output';
@@ -341,6 +343,8 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
   const [scriptModal, setScriptModal] = useState<{ isOpen: boolean; nodeId: string | null; scriptType: string; variableName: string; scriptContent: string }>({ isOpen: false, nodeId: null, scriptType: '', variableName: '', scriptContent: '' });
   const [codeModal, setCodeModal] = useState<{ isOpen: boolean; nodeId: string | null }>({ isOpen: false, nodeId: null });
   const [mappingEditorModal, setMappingEditorModal] = useState<{ isOpen: boolean; nodeId: string | null; mappings: MappingConnection[]; fixedTargetNodeId?: string | null }>({ isOpen: false, nodeId: null, mappings: [] });
+  // CallDO 매핑 스크립트 모달 (data.mappingScript)
+  const [mappingScriptModal, setMappingScriptModal] = useState<{ isOpen: boolean; nodeId: string | null; script: string }>({ isOpen: false, nodeId: null, script: '' });
 
   // 노드 정보 팝오버 (선택된 노드 id — selectedNode와 독립)
   const [infoNodeId, setInfoNodeId] = useState<string | null>(null);
@@ -409,6 +413,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
     startValue: string;
     endValue: string;
     stepValue: string;
+    operator: string;
     selectedNode: string;
     fieldType: 'input' | 'output';
     fieldName: string;
@@ -421,6 +426,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
     startValue: '',
     endValue: '',
     stepValue: '',
+    operator: '',
     selectedNode: '',
     fieldType: 'input',
     fieldName: '',
@@ -498,6 +504,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
           startValue: node.data.startValue || '',
           endValue: node.data.endValue || '',
           stepValue: node.data.stepValue || '',
+          operator: node.data.operator || '',
           selectedNode: node.data.selectedNode || '',
           fieldType: node.data.fieldType || 'input',
           fieldName: node.data.fieldName || '',
@@ -1037,6 +1044,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
         startValue: node.data.startValue || '',
         endValue: node.data.endValue || '',
         stepValue: node.data.stepValue || '',
+        operator: node.data.operator || '',
         selectedNode: node.data.selectedNode || '',
         fieldType: node.data.fieldType || 'input',
         fieldName: node.data.fieldName || '',
@@ -1370,6 +1378,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
         updateNodeData(containerId, 'startValue', loopData.startValue || '');
         updateNodeData(containerId, 'endValue', loopData.endValue || '');
         updateNodeData(containerId, 'stepValue', loopData.stepValue || '');
+        updateNodeData(containerId, 'operator', loopData.operator || '<=');
       } else if (loopData && containerType === 'ForEach') {
         // While과 동일 패턴: expression 하나만 저장
         updateNodeData(containerId, 'expression', loopData.expression || '');
@@ -1386,6 +1395,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
       startValue: '',
       endValue: '',
       stepValue: '',
+      operator: '',
       selectedNode: '',
       fieldType: 'input',
       fieldName: '',
@@ -1541,6 +1551,19 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
                       <ArrowDownToLine size={14} className="text-emerald-500" />
                       <span>입력 매핑</span>
                     </button>
+                    {/* 매핑 스크립트 - CallDO 전용, 입력 매핑 바로 아래 */}
+                    {node?.type === 'CallDO' && (
+                      <button
+                        onClick={() => {
+                          setMappingScriptModal({ isOpen: true, nodeId: nodeContextMenu.nodeId, script: (node?.data as any)?.mappingScript || '' });
+                          setNodeContextMenu(null);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                      >
+                        <FileCode2 size={14} className="text-[#5277f7]" />
+                        <span>매핑 스크립트</span>
+                      </button>
+                    )}
                     <div className="border-t border-slate-100 my-1" />
                   </>
                 )}
@@ -1674,6 +1697,19 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
         onSelect={handleCodeSelect}
       />
 
+      {/* CallDO 매핑 스크립트 모달 — Script 노드와 동일한 스크립트 편집기 재사용 (저장은 mappingScript 태그 한 개) */}
+      <ScriptEditModal
+        isOpen={mappingScriptModal.isOpen}
+        onClose={() => setMappingScriptModal({ isOpen: false, nodeId: null, script: '' })}
+        nodeId={mappingScriptModal.nodeId}
+        nodes={nodes}
+        edges={edges}
+        initialScriptContent={mappingScriptModal.script}
+        onSave={(_scriptType, _variableName, scriptContent) => {
+          if (mappingScriptModal.nodeId) updateNodeData(mappingScriptModal.nodeId, 'mappingScript', scriptContent);
+        }}
+      />
+
       {/* Mapping Editor Modal */}
       <MappingEditorModal
         isOpen={mappingEditorModal.isOpen}
@@ -1697,6 +1733,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
           startValue: '',
           endValue: '',
           stepValue: '',
+          operator: '',
           selectedNode: '',
           fieldType: 'input',
           fieldName: '',
@@ -1711,6 +1748,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
         initialStartValue={nestedContainerModal.startValue}
         initialEndValue={nestedContainerModal.endValue}
         initialStepValue={nestedContainerModal.stepValue}
+        initialOperator={nestedContainerModal.operator}
         initialSelectedNode={nestedContainerModal.selectedNode}
         initialFieldType={nestedContainerModal.fieldType}
         initialFieldName={nestedContainerModal.fieldName}
@@ -1735,6 +1773,7 @@ export const ContainerFlowModal = ({
   initialStartValue = '',
   initialEndValue = '',
   initialStepValue = '',
+  initialOperator = '',
   initialSelectedNode = '',
   initialFieldType = 'input',
   initialFieldName = '',
@@ -1810,6 +1849,8 @@ export const ContainerFlowModal = ({
   const [startValue, setStartValue] = useState(initialStartValue);
   const [endValue, setEndValue] = useState(initialEndValue);
   const [stepValue, setStepValue] = useState(initialStepValue);
+  const [operator, setOperator] = useState(initialOperator || '<=');
+  const [operatorOpen, setOperatorOpen] = useState(false);
   // For: 시작/종료 값을 노드 참조로 지정할지 여부(체크 시 노드 선택 콤보박스, 미체크 시 숫자 입력).
   // 별도 JSON 태그를 추가하지 않고(S010) start/end 문자열 내용으로 상태를 복원한다.
   const [startIsNode, setStartIsNode] = useState(false);
@@ -1856,6 +1897,8 @@ export const ContainerFlowModal = ({
       setStartValue(initialStartValue || '');
       setEndValue(initialEndValue || '');
       setStepValue(initialStepValue || '');
+      setOperator(initialOperator || '<=');
+      setOperatorOpen(false);
       // For: 저장된 값이 숫자면 숫자 입력(미체크), 비어있지 않은 비숫자면 노드 참조(체크)로 복원.
       const sv = initialStartValue || '';
       const ev = initialEndValue || '';
@@ -1882,7 +1925,7 @@ export const ContainerFlowModal = ({
       setQuickFieldDropdownOpen(false);
       setQuickFetchedOutputs([]);
     }
-  }, [isOpen, initialStartValue, initialEndValue, initialStepValue, initialSelectedNode, initialFieldType, initialFieldName, initialExpression]);
+  }, [isOpen, initialStartValue, initialEndValue, initialStepValue, initialOperator, initialSelectedNode, initialFieldType, initialFieldName, initialExpression]);
 
   // ForEach: 노드 선택 변경 시 해당 노드의 IO를 API로 조회
   useEffect(() => {
@@ -2195,7 +2238,7 @@ export const ContainerFlowModal = ({
     // Include loop data for For/ForEach/While
     let loopData: LoopData | undefined;
     if (containerType === 'For') {
-      loopData = { startValue, endValue, stepValue };
+      loopData = { startValue, endValue, stepValue, operator };
     } else if (containerType === 'ForEach') {
       // While과 동일 패턴: expression 단일 입력으로 통합
       loopData = { expression };
@@ -2206,7 +2249,7 @@ export const ContainerFlowModal = ({
     // onSave 콜백(App.tsx handleContainerFlowSave)에서 직접 모달을 닫음
     // 취소 시에는 onClose가 스냅샷을 복원하므로, 저장 경로에서는 onClose를 호출하지 않음
     onSave(restoredNodes, latestEdges, loopData);
-  }, [containerId, onSave, containerType, startValue, endValue, stepValue, selectedNode, fieldType, fieldName, expression, initialNodes, availableNodes]);
+  }, [containerId, onSave, containerType, startValue, endValue, stepValue, operator, selectedNode, fieldType, fieldName, expression, initialNodes, availableNodes]);
 
   const getTypeConfig = () => {
     switch (containerType) {
@@ -2453,6 +2496,33 @@ export const ContainerFlowModal = ({
               <div className="flex items-center" style={{ gap: 12 }}>
                 <span className="text-xs text-slate-500 font-medium" style={{ whiteSpace: 'nowrap' }}>시작 값</span>
                 {renderValueField(startIsNode, setStartIsNode, startValue, setStartValue, startModeOpen, setStartModeOpen, startNodeDropdownOpen, setStartNodeDropdownOpen, '0', startFieldOpen, setStartFieldOpen, startNodeFields)}
+              </div>
+              {/* 비교 연산자 (시작 값 [op] 종료 값) — JSON 태그 operator (사용자 확정) */}
+              <div className="relative" style={{ marginLeft: -12, marginRight: -12 }}>
+                <button
+                  type="button"
+                  className="flex items-center justify-center bg-white border border-slate-300 rounded-xl shadow-sm text-xs font-semibold text-[#5277f7] hover:bg-slate-50 transition-colors"
+                  style={{ height: 42, minWidth: 56, gap: 4, padding: '0 10px', fontFamily: 'monospace' }}
+                  onClick={() => setOperatorOpen(v => !v)}
+                  title="비교 연산자 선택"
+                >
+                  <span>{operator}</span>
+                  <ChevronDown size={11} className={`text-slate-400 transition-transform duration-200 ${operatorOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {operatorOpen && (
+                  <div className="absolute top-full left-0 mt-1.5 bg-white rounded-lg shadow-xl border border-slate-200 py-1" style={{ zIndex: 99999, minWidth: 72 }}>
+                    {['<', '<=', '>', '>=', '==', '!='].map(op => (
+                      <div
+                        key={op}
+                        className={`px-4 py-1.5 text-xs cursor-pointer transition-colors ${operator === op ? 'bg-blue-50 text-[#5277f7] font-semibold' : 'hover:bg-slate-50 text-slate-700'}`}
+                        style={{ whiteSpace: 'nowrap', fontFamily: 'monospace', textAlign: 'center' }}
+                        onClick={() => { setOperator(op); setOperatorOpen(false); }}
+                      >
+                        {op}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="flex items-center" style={{ gap: 12 }}>
                 <span className="text-xs text-slate-500 font-medium" style={{ whiteSpace: 'nowrap' }}>종료 값</span>

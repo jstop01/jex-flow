@@ -9,7 +9,7 @@ const SAVE_DATA_FIELDS: Record<string, string[]> = {
   Start:     ['label', 'isStart', 'inputMessage', 'outputMessage', 'outputs'],
   End:       ['label', 'isEnd', 'mappings'],
   Variable:  ['label', 'variableName', 'expression', 'mappings'],
-  CallDO:    ['label', 'ido', 'returnType', 'code', 'codeName', 'description', 'returnTypeOptions', 'mappings'],
+  CallDO:    ['label', 'ido', 'returnType', 'code', 'codeName', 'description', 'returnTypeOptions', 'mappings', 'mappingScript'],
   Process:   ['label', 'serviceType', 'serviceTypeInput', 'ido', 'returnType', 'code', 'codeName', 'description', 'mappings'],
   Mapping:   ['label', 'mappings', 'inputMappings'],
   IfElse:    ['label', 'expression', 'mappings'],
@@ -19,7 +19,7 @@ const SAVE_DATA_FIELDS: Record<string, string[]> = {
   Script:    ['label', 'scriptType', 'scriptContent', 'variableName', 'mappings'],
   Method:    ['label', 'isExpanded', 'hasChildren', 'internalNodesPreview'],
   While:     ['label', 'expression', 'isExpanded', 'hasChildren', 'internalNodesPreview'],
-  For:       ['label', 'expression', 'isExpanded', 'hasChildren', 'internalNodesPreview', 'startValue', 'endValue', 'stepValue'],
+  For:       ['label', 'expression', 'isExpanded', 'hasChildren', 'internalNodesPreview', 'startValue', 'endValue', 'stepValue', 'operator'],
   ForEach:   ['label', 'expression', 'isExpanded', 'hasChildren', 'internalNodesPreview'],
   CallMethod:  ['label', 'selectedGroup'],
 };
@@ -46,6 +46,8 @@ export const cleanNodeForExport = (node: Node): any => {
     }
     // 매핑 데이터 보존 (입력 매핑 설정)
     if (data.mappings) cleanData.mappings = data.mappings;
+    // 매핑 스크립트 보존 (JSON 태그 mappingScript — 사용자 확정)
+    if (data.mappingScript) cleanData.mappingScript = data.mappingScript;
   } else {
     for (const field of allowedFields) {
       if (data[field] !== undefined) {
