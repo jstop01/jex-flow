@@ -2662,6 +2662,36 @@ export default function App() {
                 finalOutputs = [{ name: n.data.variableName, fieldType: 'String' }];
               }
 
+              // 컨테이너(For/ForEach/While/Method): 내부 end(`{id}-end`)가 매핑받은 타겟 필드들을
+              // 컨테이너의 대외 output으로 노출 (For 안에서 For1-end에 매핑한 결과를 밖에서 소스로 사용 가능)
+              const CONTAINER_TYPES_FOR_OUT = ['For', 'ForEach', 'While', 'Method'];
+              if (CONTAINER_TYPES_FOR_OUT.includes(nodeType) && finalOutputs.length === 0) {
+                const endId = `${n.id}-end`;
+                const names: string[] = [];
+                const seen = new Set<string>();
+                nodes.forEach(nd => {
+                  const ms = (nd.data as any)?.mappings;
+                  if (Array.isArray(ms)) {
+                    ms.forEach((m: any) => {
+                      if (m?.targetNodeId === endId && m?.targetFieldName && !seen.has(m.targetFieldName)) {
+                        seen.add(m.targetFieldName);
+                        names.push(m.targetFieldName);
+                      }
+                    });
+                  }
+                });
+                if (names.length === 0) {
+                  // fallback: 내부 end 노드의 outputs/inputs 스키마
+                  const endNode = nodes.find(nd => nd.id === endId);
+                  const eo: any[] = (endNode?.data as any)?.outputs || (endNode?.data as any)?.inputs || [];
+                  eo.forEach((f: any) => {
+                    const nm = f?.name || f?.englishName;
+                    if (nm && !seen.has(nm)) { seen.add(nm); names.push(nm); }
+                  });
+                }
+                finalOutputs = names.map(name => ({ name }));
+              }
+
               // 노드 타입별 label 구성: 모든 타입에서 node.id를 기본 표시값으로 사용
               const displayLabel: string = n.id;
 

@@ -570,7 +570,11 @@ export const MappingEditorModal = ({
       setTimeout(() => forceUpdate(), 150);
       setTimeout(() => forceUpdate(), 300);
     }
-  }, [isOpen, initialMappings, availableNodes]);
+    // 주의: deps는 isOpen만 — 모달이 열릴 때 1회 초기화.
+    // availableNodes/initialMappings를 deps에 두면 부모 리렌더로 참조가 바뀔 때마다
+    // setRefsReady(false)→(true)가 반복되어 연결선이 깜빡이는 버그가 있었음.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   // 노드 선택이 변경될 때마다 선택 해제
   useEffect(() => {

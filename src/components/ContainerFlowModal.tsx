@@ -220,10 +220,14 @@ const getInitialNodes = (containerId: string, initialNodes: Node[]): Node[] => {
   if (existingStart && !isFirstOpen) {
     startNode.position = { ...existingStart.position };
   }
-  // 내부 start의 outputs(ForEach 순회 대상 노드의 output이 세팅됨)를 재진입 시에도 보존한다.
-  // (하드코딩 data로 덮어쓰면 저장했던 outputs가 유실되므로 기존 값을 이어받음)
-  if (existingStart && (existingStart.data as any)?.outputs) {
-    (startNode.data as any).outputs = (existingStart.data as any).outputs;
+  // 내부 start/end의 기존 data를 재진입 시에도 통째로 보존한다.
+  // (하드코딩 data로 덮어쓰면 start의 outputs(ForEach 순회 output), end의 mappings(입력 매핑) 등이
+  //  재진입만 해도 유실되고, 그 상태로 컨테이너를 저장하면 영구 소실되는 버그가 있었음)
+  if (existingStart?.data) {
+    startNode.data = { ...startNode.data, ...(existingStart.data as any) };
+  }
+  if (existingEnd?.data) {
+    endNode.data = { ...endNode.data, ...(existingEnd.data as any) };
   }
   if (existingEnd && !isFirstOpen) {
     endNode.position = { ...existingEnd.position };
@@ -328,7 +332,8 @@ export interface FlowCanvasHandle {
   getEdges: () => Edge[];
 }
 
-const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId, initialNodes: propsInitialNodes, initialEdges: propsInitialEdges, onNodesUpdate, onEdgesUpdate, availableNodes = [], containerType: canvasContainerType = null, foreachStartOutputs = [] }, ref) => {
+const EMPTY_FOREACH_OUTPUTS: Array<{ name: string; fieldType?: string; children?: any }> = [];
+const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId, initialNodes: propsInitialNodes, initialEdges: propsInitialEdges, onNodesUpdate, onEdgesUpdate, availableNodes = [], containerType: canvasContainerType = null, foreachStartOutputs = EMPTY_FOREACH_OUTPUTS }, ref) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [contextMenu, setContextMenu] = useState<{ top: number; left: number; flowPosition: { x: number; y: number } } | null>(null);
@@ -1136,6 +1141,27 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
       }
       if (nodeType === 'Variable' && nodeData?.variableName) {
         finalOutputs = [{ name: nodeData.variableName, fieldType: 'String' }];
+      }
+      // 컨테이너(For/ForEach/While/Method): 내부 end(`{id}-end`)가 매핑받은 타겟 필드들을 대외 output으로 노출
+      if (['For', 'ForEach', 'While', 'Method'].includes(nodeType) && finalOutputs.length === 0) {
+        const endId = `${n.id}-end`;
+        const seen = new Set<string>();
+        const names: string[] = [];
+        const scan = (list: Node[]) => list.forEach(nd => {
+          const ms = (nd.data as any)?.mappings;
+          if (Array.isArray(ms)) ms.forEach((m: any) => {
+            if (m?.targetNodeId === endId && m?.targetFieldName && !seen.has(m.targetFieldName)) {
+              seen.add(m.targetFieldName); names.push(m.targetFieldName);
+            }
+          });
+        });
+        scan(propsInitialNodes); scan(nodes);
+        if (names.length === 0) {
+          const endNode = propsInitialNodes.find(nd => nd.id === endId) || nodes.find(nd => nd.id === endId);
+          const eo: any[] = (endNode?.data as any)?.outputs || (endNode?.data as any)?.inputs || [];
+          eo.forEach((f: any) => { const nm = f?.name || f?.englishName; if (nm && !seen.has(nm)) { seen.add(nm); names.push(nm); } });
+        }
+        finalOutputs = names.map(name => ({ name }));
       }
       return {
         id: n.id,
