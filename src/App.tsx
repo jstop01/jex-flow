@@ -2853,6 +2853,21 @@ export default function App() {
         isOpen={isCodeModalOpen}
         onClose={() => setIsCodeModalOpen(false)}
         onSelect={handleCodeSelect}
+        onDirectInput={(message) => {
+          // 직접 입력 모드: description에 메시지 저장, 코드 관련 필드는 비움 (사용자 확정 계약)
+          if (selectedNodeId) {
+            updateNodeData(selectedNodeId, 'description', message);
+            updateNodeData(selectedNodeId, 'code', '');
+            updateNodeData(selectedNodeId, 'codeName', '');
+            updateNodeData(selectedNodeId, 'majorCode', '');
+            updateNodeData(selectedNodeId, 'minorCode', '');
+            setSelectedNodeId(null);
+          }
+        }}
+        initialDirectMessage={(() => {
+          const n = nodes.find(nd => nd.id === selectedNodeId);
+          return n && !n.data?.code ? (n.data?.description || '') : '';
+        })()}
       />
 
       <TextEditModal

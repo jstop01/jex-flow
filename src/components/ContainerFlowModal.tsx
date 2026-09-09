@@ -1721,6 +1721,21 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
         isOpen={codeModal.isOpen}
         onClose={() => setCodeModal({ isOpen: false, nodeId: null })}
         onSelect={handleCodeSelect}
+        onDirectInput={(message) => {
+          // 직접 입력 모드: description에 메시지 저장, 코드 관련 필드는 비움 (사용자 확정 계약)
+          if (codeModal.nodeId) {
+            updateNodeData(codeModal.nodeId, 'description', message);
+            updateNodeData(codeModal.nodeId, 'code', '');
+            updateNodeData(codeModal.nodeId, 'codeName', '');
+            updateNodeData(codeModal.nodeId, 'majorCode', '');
+            updateNodeData(codeModal.nodeId, 'minorCode', '');
+          }
+          setCodeModal({ isOpen: false, nodeId: null });
+        }}
+        initialDirectMessage={(() => {
+          const n = nodes.find(nd => nd.id === codeModal.nodeId);
+          return n && !(n.data as any)?.code ? ((n.data as any)?.description || '') : '';
+        })()}
       />
 
       {/* CallDO 매핑 스크립트 모달 — Script 노드와 동일한 스크립트 편집기 재사용 (저장은 mappingScript 태그 한 개) */}

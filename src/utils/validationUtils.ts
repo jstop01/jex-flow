@@ -189,17 +189,24 @@ export const validateFlow = (nodes: Node[], edges: Edge[]): ValidationResult => 
     }
   }
 
-  // 11. IfElse TRUE/FALSE 양쪽 분기 연결 확인
+  // 11. IfElse TRUE/FALSE 양쪽 분기 연결 확인 (대소문자 무시)
   const ifElseNodes = mainNodes.filter(n => n.type === 'IfElse');
   for (const node of ifElseNodes) {
     const outEdges = mainEdges.filter(e => e.source === node.id);
-    const hasTrueEdge = outEdges.some(e => e.sourceHandle === 'true' || e.sourceHandle === 'True');
-    const hasFalseEdge = outEdges.some(e => e.sourceHandle === 'false' || e.sourceHandle === 'False');
+    const handleOf = (e: any) => (e.sourceHandle || '').toLowerCase();
+    const hasTrueEdge = outEdges.some(e => handleOf(e) === 'true');
+    const hasFalseEdge = outEdges.some(e => handleOf(e) === 'false');
+    // 분기 핸들 정보가 없는(=어느 분기인지 알 수 없는) 연결: 외부/이전 데이터 유입 케이스.
+    // 화면엔 TRUE/FALSE 위치로 그려져도 실행 시 분기를 판단할 수 없으므로 재연결을 안내한다.
+    const unknownEdges = outEdges.filter(e => !handleOf(e));
     if (!hasTrueEdge || !hasFalseEdge) {
       const missing = !hasTrueEdge && !hasFalseEdge ? 'TRUE, FALSE' : !hasTrueEdge ? 'TRUE' : 'FALSE';
+      const hint = unknownEdges.length > 0
+        ? ` (분기 정보가 없는 연결이 ${unknownEdges.length}건 있습니다 — 해당 선을 삭제 후 TRUE/FALSE 꼭짓점에서 다시 연결해주세요)`
+        : '';
       errors.push({
         type: 'IFELSE_BRANCH_MISSING',
-        message: `IfElse (${node.id}): ${missing} 분기가 연결되지 않았습니다.`,
+        message: `IfElse (${node.id}): ${missing} 분기가 연결되지 않았습니다.${hint}`,
         nodeIds: [node.id],
       });
     }

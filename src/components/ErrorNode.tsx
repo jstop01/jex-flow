@@ -25,11 +25,16 @@ export const ErrorNode = memo(({ id, data, selected }: NodeProps) => {
             {id}
         </div>
         <div className="text-red-300 text-[10px] font-mono">type: Error</div>
-        {data.code && (
+        {data.code ? (
             <div className="text-[10px] text-red-400 font-mono">
                 {data.code}
             </div>
-        )}
+        ) : data.description ? (
+            /* 직접 입력 모드: 코드 없이 사용자가 입력한 에러 메시지 표시 */
+            <div className="text-[10px] text-red-400 text-center break-words px-1 max-w-[160px]">
+                "{String(data.description).length > 40 ? String(data.description).slice(0, 40) + '…' : data.description}"
+            </div>
+        ) : null}
       </div>
     </div>
   );
