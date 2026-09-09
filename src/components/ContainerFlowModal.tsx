@@ -2003,7 +2003,9 @@ export const ContainerFlowModal = ({
         .catch(() => setFields([]));
     } else {
       const ins = (av?.inputs || []).map(f => ({ name: f.name, io: 'INPUT' }));
-      const outs = (av?.outputs || []).map(f => ({ name: f.name, io: 'OUTPUT' }));
+      const inNames = new Set(ins.map(f => f.name));
+      // Start 노드처럼 inputs가 outputs로 미러된 경우 같은 필드가 양쪽 섹션에 중복 표시되지 않게 제거
+      const outs = (av?.outputs || []).filter(f => !inNames.has(f.name)).map(f => ({ name: f.name, io: 'OUTPUT' }));
       setFields([...ins, ...outs]);
     }
   }, [availableNodes, initialNodes]);

@@ -2788,10 +2788,12 @@ export default function App() {
         initialFieldName={containerFlowModal.fieldName}
         initialExpression={containerFlowModal.expression}
         availableNodes={
-          // For ForEach, provide list of all nodes except self with their inputs/outputs
+          // For/ForEach: 자기 자신·내부 start/end·메인 End 제외한 노드 목록 (메인 Start는 포함 —
+          // Start의 inputMessage를 For 시작/종료 값이나 ForEach 순회 소스로 쓸 수 있어야 함)
           nodes
             .filter(n =>
-              !n.data?.isStart &&
+              !n.data?.isInternalStart &&
+              !n.data?.isInternalEnd &&
               !n.data?.isEnd &&
               n.id !== containerFlowModal.containerId // Exclude current container
             )
@@ -2804,7 +2806,9 @@ export default function App() {
                 .map((input: any) => ({
                   name: input.name || input.englishName || input.koreanName
                 })),
-              outputs: (n.data?.outputs || [])
+              outputs: ((n.data?.outputs && n.data.outputs.length > 0) ? n.data.outputs
+                // Start 노드: inputMessage(inputs)가 다음 노드로 전달되므로 outputs로 미러
+                : (n.data?.isStart || n.type === 'Start') ? (n.data?.inputs || []) : (n.data?.outputs || []))
                 .filter((output: any) => output && (output.name || output.englishName || output.koreanName))
                 .map((output: any) => ({
                   name: output.name || output.englishName || output.koreanName
