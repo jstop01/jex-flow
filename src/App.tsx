@@ -156,7 +156,7 @@ const convertDomainFieldsToIOFields = (
     const io = convertDomainFieldToIOField(field, index);
     // RECORD/COMMON 엔트리면 RECORD 정의에서 자식 채우기
     const fldTp = (field.FLD_TP || '').toUpperCase();
-    if ((fldTp === 'RECORD' || fldTp === 'COMMON') && recordChildrenMap) {
+    if ((fldTp === 'RECORD' || fldTp === 'COMMON' || fldTp === 'GROUP') && recordChildrenMap) {
       const lookupKey = field.RULE_NM || field.ENG_WRD_SRT || '';
       const children = lookupKey ? recordChildrenMap[lookupKey] : undefined;
       if (children && children.length > 0) {
@@ -2609,7 +2609,7 @@ export default function App() {
               // fieldType: 'RECORD', 'Record', 'COMMON', 'Common' 모두 허용
               const isRecordType = (ft: string | undefined) => {
                 const upper = ft?.toUpperCase();
-                return upper === 'RECORD' || upper === 'COMMON';
+                return upper === 'RECORD' || upper === 'COMMON' || upper === 'MATCH' || upper === 'GROUP';
               };
 
               const convertField = (field: any): any => {

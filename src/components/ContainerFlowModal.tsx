@@ -2092,7 +2092,7 @@ export const ContainerFlowModal = ({
   const quickRecordFields = useMemo(() => {
     const isRec = (ft?: string) => {
       const u = ft?.toUpperCase();
-      return u === 'RECORD' || u === 'COMMON';
+      return u === 'RECORD' || u === 'COMMON' || u === 'GROUP';
     };
     const recFields = quickFetchedOutputs.filter(f => isRec(f.fieldType));
     // RECORD 필드가 없으면 전체 outputs 제공 (노드 자체 순회 지원)

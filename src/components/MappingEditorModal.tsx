@@ -621,7 +621,7 @@ export const MappingEditorModal = ({
   // fieldType이 Record/CMO/Match 계열(펼침 가능)인지 판별 (대소문자 무관)
   const isRecordFieldType = (ft?: string) => {
     const upper = ft?.toUpperCase();
-    return upper === 'RECORD' || upper === 'COMMON' || upper === 'MATCH';
+    return upper === 'RECORD' || upper === 'COMMON' || upper === 'MATCH' || upper === 'GROUP';
   };
 
   // Record 타입의 children을 펼쳐서 flat한 배열로 만드는 함수
