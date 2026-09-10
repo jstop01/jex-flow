@@ -5,6 +5,8 @@ interface NodeData {
   position: { x: number; y: number };
   type?: string;
   data?: any;
+  parentId?: string;
+  hidden?: boolean;
 }
 
 interface MiniMapData {
@@ -119,9 +121,13 @@ export const MiniMapOnlyPage: React.FC = () => {
   const lastDataRef = useRef<string>('');
 
   useEffect(() => {
+    // 메인 캔버스에 보이는 최상위 노드만 표시 (컨테이너 내부 hidden 노드는 제외 —
+    // 포함하면 Flow Editor보다 노드가 많아 보이는 문제)
+    const topLevelOnly = (list: NodeData[]) => (list || []).filter(n => !n.parentId && !n.hidden);
+
     // window 객체에서 데이터 읽기
     if (window.MINIMAP_DATA) {
-      setNodes(window.MINIMAP_DATA.nodes || []);
+      setNodes(topLevelOnly(window.MINIMAP_DATA.nodes || []));
     }
 
     // postMessage 리스너
@@ -138,7 +144,7 @@ export const MiniMapOnlyPage: React.FC = () => {
         }
         lastDataRef.current = dataHash;
 
-        setNodes(rawNodes);
+        setNodes(topLevelOnly(rawNodes));
       }
     };
 
