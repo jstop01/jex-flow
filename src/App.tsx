@@ -144,6 +144,29 @@ const buildRecordChildrenMap = (recordData: any[]): Record<string, IOField[]> =>
     const keys = [rec?.COM_ID, rec?.ENG_WRD_SRT, rec?.RULE_NM].filter(Boolean);
     keys.forEach((k: string) => { if (!map[k]) map[k] = children; });
   });
+
+  // 2차 패스: children 안의 GROUP/RECORD 참조를 map에서 해석해 중첩 계층 연결 (그룹 안의 그룹 지원).
+  // 순환·무한 트리 방지: 방문 스택 + 깊이 5 제한, 항상 새 객체 복사(참조 공유 금지)
+  const resolveNested = (children: IOField[], stack: string[]): IOField[] =>
+    children.map((c) => {
+      const ft = (c.fieldType || '').toUpperCase();
+      const key = c.ruleName || c.englishName || c.name || '';
+      if ((ft === 'GROUP' || ft === 'RECORD' || ft === 'MATCH') && (!c.children || c.children.length === 0)) {
+        const entry = key ? map[key] : undefined;
+        if (entry && !stack.includes(key) && stack.length < 5) {
+          return { ...c, children: resolveNested(entry, [...stack, key]) };
+        }
+        return c;
+      }
+      if (c.children && c.children.length > 0 && stack.length < 5) {
+        return { ...c, children: resolveNested(c.children, stack) };
+      }
+      return c;
+    });
+  Object.keys(map).forEach((k) => {
+    map[k] = resolveNested(map[k], [k]);
+  });
+
   return map;
 };
 

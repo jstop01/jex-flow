@@ -208,7 +208,6 @@ function buildRecordDomainMap(
         msgInfArr.forEach((v: any, vi: number) => {
           const valueId = (v && v.VALUE != null && v.VALUE !== '') ? String(v.VALUE) : `value_${vi + 1}`;
           const valueFields: IOField[] = (v && Array.isArray(v.MSG) ? v.MSG : [])
-            .filter((m: any) => m.FLD_TP !== 'GROUP')
             .map((m: any, ci: number) => toChildField(m, `R_${idx + 1}_${vi + 1}_${ci + 1}`));
           children.push({
             id: `R_${idx + 1}_${vi + 1}`,
@@ -234,13 +233,35 @@ function buildRecordDomainMap(
         });
       } else {
         msgInfArr.forEach((m: any, childIdx: number) => {
-          if (m.FLD_TP === 'GROUP') return;
           children.push(toChildField(m, `R_${idx + 1}_${childIdx + 1}`));
         });
       }
 
       map[d.COM_ID] = { korName, children };
     });
+
+  // 2차 패스: children 안의 GROUP/RECORD/MATCH 참조를 map에서 해석해 중첩 계층 연결.
+  // (그룹 안의 그룹처럼 정의를 참조하는 항목의 하위 필드를 채운다)
+  // 순환 참조·무한 트리 방지: 방문 스택 + 깊이 5 제한, 항상 새 객체로 복사(참조 공유 금지 — snapshot stringify 안전)
+  const resolveNested = (children: IOField[], stack: string[]): IOField[] =>
+    children.map((c) => {
+      const ft = (c.fieldType || '').toUpperCase();
+      const key = (c as any).ruleName || c.englishName || c.name || '';
+      if ((ft === 'GROUP' || ft === 'RECORD' || ft === 'MATCH') && (!c.children || c.children.length === 0)) {
+        const entry = key ? map[key] : undefined;
+        if (entry && !stack.includes(key) && stack.length < 5) {
+          return { ...c, children: resolveNested(entry.children, [...stack, key]) };
+        }
+        return c;
+      }
+      if (c.children && c.children.length > 0 && stack.length < 5) {
+        return { ...c, children: resolveNested(c.children, stack) };
+      }
+      return c;
+    });
+  Object.keys(map).forEach((k) => {
+    map[k] = { ...map[k], children: resolveNested(map[k].children, [k]) };
+  });
 
   return map;
 }
