@@ -255,7 +255,7 @@ export const MappingEditorModal = ({
         if (componentId) {
           const ioData = await fetchComponentIO(componentId, comTp);
           const recordField = ioData.outputs.find(
-            (f: any) => (f.fieldType === 'RECORD' || f.type === 'RECORD') &&
+            (f: any) => (['RECORD','GROUP','MATCH','COMMON'].includes(String(f.fieldType || f.type || '').toUpperCase())) &&
               (f.englishName === sourceRecordPath || f.name === sourceRecordPath)
           );
           children = (recordField?.children || []).map((c: any) => ({
@@ -301,7 +301,7 @@ export const MappingEditorModal = ({
           const ioData = await fetchComponentIO(componentId, comTp);
           const allFields = [...(ioData.outputs || []), ...(ioData.inputs || [])];
           const recordField = allFields.find(
-            (f: any) => (f.fieldType === 'RECORD' || f.type === 'RECORD') &&
+            (f: any) => (['RECORD','GROUP','MATCH','COMMON'].includes(String(f.fieldType || f.type || '').toUpperCase())) &&
               (f.englishName === targetRecordPath || f.name === targetRecordPath)
           );
           children = (recordField?.children || []).map((c: any) => ({
@@ -735,7 +735,7 @@ export const MappingEditorModal = ({
       if (componentId) {
         const ioData = await fetchComponentIO(componentId, comTp);
         const recordField = ioData.outputs.find(
-          (f: any) => (f.fieldType === 'RECORD' || f.type === 'RECORD') &&
+          (f: any) => (['RECORD','GROUP','MATCH','COMMON'].includes(String(f.fieldType || f.type || '').toUpperCase())) &&
             (f.englishName === recordName || f.name === recordName)
         );
         children = (recordField?.children || []).map((c: any) => ({
@@ -806,7 +806,7 @@ export const MappingEditorModal = ({
         const ioData = await fetchComponentIO(componentId, comTp);
         const allFields = [...(ioData.outputs || []), ...(ioData.inputs || [])];
         const recordField = allFields.find(
-          (f: any) => (f.fieldType === 'RECORD' || f.type === 'RECORD') &&
+          (f: any) => (['RECORD','GROUP','MATCH','COMMON'].includes(String(f.fieldType || f.type || '').toUpperCase())) &&
             (f.englishName === recordName || f.name === recordName)
         );
         children = (recordField?.children || []).map((c: any) => ({

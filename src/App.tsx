@@ -992,11 +992,14 @@ export default function App() {
     }
 
     // Mapping node opens mapping editor modal
+    // 매핑 노드로 열 때는 타겟을 최상위(서비스) End 노드로 고정한다 (요구사항: 우클릭 입력매핑과 달리 항상 밖 end가 타겟)
     if (node.type === 'Mapping') {
+      const serviceEndId = nodes.find(n => (n.data?.isEnd || n.type === 'End') && !n.data?.isInternalEnd && !n.parentId)?.id || null;
       setMappingEditorModal({
         isOpen: true,
         nodeId: node.id,
         mappings: node.data.mappings || [],
+        fixedTargetNodeId: serviceEndId,
       });
       return;
     }
@@ -1541,11 +1544,14 @@ export default function App() {
     }
 
     // Mapping node opens mapping editor modal
+    // 매핑 노드로 열 때는 타겟을 최상위(서비스) End 노드로 고정한다 (요구사항: 우클릭 입력매핑과 달리 항상 밖 end가 타겟)
     if (node.type === 'Mapping') {
+      const serviceEndId = nodes.find(n => (n.data?.isEnd || n.type === 'End') && !n.data?.isInternalEnd && !n.parentId)?.id || null;
       setMappingEditorModal({
         isOpen: true,
         nodeId: node.id,
         mappings: node.data.mappings || [],
+        fixedTargetNodeId: serviceEndId,
       });
       return;
     }

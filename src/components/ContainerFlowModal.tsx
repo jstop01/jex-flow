@@ -495,10 +495,12 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
       } else if (node.type === 'Error') {
         setCodeModal({ isOpen: true, nodeId: node.id });
       } else if (node.type === 'Mapping') {
+        // 매핑 노드로 열 때는 타겟을 최상위(서비스) End로 고정 (요구사항)
         setMappingEditorModal({
           isOpen: true,
           nodeId: node.id,
           mappings: node.data.mappings || [],
+          fixedTargetNodeId: propsInitialNodes.find(n => ((n.data as any)?.isEnd || n.type === 'End') && !(n.data as any)?.isInternalEnd && !n.parentId)?.id || null,
         });
       } else if (['Method', 'For', 'ForEach', 'While'].includes(node.type || '')) {
         setNestedContainerModal({
@@ -1030,11 +1032,13 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
     }
 
     // Mapping 노드 더블클릭 시 매핑 에디터 모달 열기
+    // 매핑 노드로 열 때는 타겟을 최상위(서비스) End로 고정 (요구사항)
     if (node.type === 'Mapping') {
       setMappingEditorModal({
         isOpen: true,
         nodeId: node.id,
         mappings: node.data.mappings || [],
+        fixedTargetNodeId: propsInitialNodes.find(n => ((n.data as any)?.isEnd || n.type === 'End') && !(n.data as any)?.isInternalEnd && !n.parentId)?.id || null,
       });
       return;
     }
