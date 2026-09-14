@@ -1496,7 +1496,12 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
         onNodeContextMenu={onNodeContextMenu}
         onPaneClick={() => { setContextMenu(null); setNodeContextMenu(null); setInfoNodeId(null); }}
         nodeTypes={nodeTypes}
-        deleteKeyCode={nestedContainerModal.isOpen ? null : ['Backspace', 'Delete']}
+        deleteKeyCode={(
+          // 어떤 모달이든 열려 있으면 내부 캔버스 Delete/Backspace 비활성
+          nestedContainerModal.isOpen || mappingEditorModal.isOpen || mappingScriptModal.isOpen ||
+          scriptModal.isOpen || conditionModal.isOpen || codeModal.isOpen ||
+          idoModal.isOpen || ioModal.isOpen || (idChangeModal !== null)
+        ) ? null : ['Backspace', 'Delete']}
         defaultEdgeOptions={{
           style: { strokeWidth: 3, stroke: '#b1b1b7' },
         }}

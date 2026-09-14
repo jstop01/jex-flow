@@ -1458,6 +1458,18 @@ export const MappingEditorModal = ({
     targetNodeCandidates.push(endNode);
   }
   // inputs가 없는 노드도 표시
+  // 드롭다운 우측 매핑 건수 뱃지용
+  const sourceMappedCount = (nid: string, recPath?: string) =>
+    mappings.reduce((acc, m) => acc + (m.sources || []).filter(sf => sf.nodeId === nid &&
+      (!recPath || (sf.fieldName || '').startsWith(recPath + '.') || sf.fieldName === recPath)).length, 0);
+  const targetMappedCount = (nid: string, recPath?: string) =>
+    mappings.filter(m => m.targetNodeId === nid &&
+      (!recPath || (m.targetFieldName || '').startsWith(recPath + '.') || m.targetFieldName === recPath)).length;
+  const countBadge = (n: number) => n > 0 ? (
+    <span style={{ float: 'right', fontSize: '11px', fontWeight: 600, color: '#b45309',
+      backgroundColor: '#fde68a', padding: '1px 8px', borderRadius: '999px' }}>{n}건</span>
+  ) : null;
+
   const nodesWithInputs = targetNodeCandidates
     .sort((a, b) => {
       // End 노드는 항상 첫 번째에 표시
@@ -1575,6 +1587,31 @@ export const MappingEditorModal = ({
             >
               <Sparkles size={15} />
               자동매핑
+            </button>
+            <button
+              onClick={() => {
+                // 현재 보고 있는 소스→타겟 조합의 매핑만 제거 (다른 소스/타겟 매핑·상수는 유지)
+                setMappings(prev => prev
+                  .map(m => {
+                    if (m.targetNodeId !== targetNodeId) return m;
+                    const rest = (m.sources || []).filter(sf => sf.nodeId !== sourceNodeId);
+                    return rest.length === (m.sources || []).length ? m : { ...m, sources: rest };
+                  })
+                  .filter(m => (m.sources || []).length > 0));
+              }}
+              disabled={!sourceNodeId || !targetNodeId || !mappings.some(m => m.targetNodeId === targetNodeId && m.sources?.some(sf => sf.nodeId === sourceNodeId))}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px',
+                backgroundColor: (sourceNodeId && targetNodeId && mappings.some(m => m.targetNodeId === targetNodeId && m.sources?.some(sf => sf.nodeId === sourceNodeId))) ? '#fef3c7' : '#f1f5f9',
+                color: (sourceNodeId && targetNodeId && mappings.some(m => m.targetNodeId === targetNodeId && m.sources?.some(sf => sf.nodeId === sourceNodeId))) ? '#b45309' : '#94a3b8',
+                border: 'none', borderRadius: '8px',
+                cursor: (sourceNodeId && targetNodeId) ? 'pointer' : 'not-allowed',
+                fontSize: '13px', fontWeight: '600',
+              }}
+              title="현재 소스→타겟 화면의 매핑만 삭제합니다 (다른 매핑은 유지)"
+            >
+              <Trash2 size={14} />
+              화면 초기화
             </button>
             <button
               onClick={() => setMappings([])}
@@ -1702,6 +1739,7 @@ export const MappingEditorModal = ({
                           }}>
                             ({node.type})
                           </span>
+                          {countBadge(sourceMappedCount(node.id))}
                         </button>
                       );
                       // 해당 노드 outputs에서 최상위 RECORD/COMMON 필드만 하위 항목으로 추가
@@ -1737,6 +1775,7 @@ export const MappingEditorModal = ({
                           <span style={{ fontSize: '10px', color: '#7c3aed', marginLeft: '4px', fontWeight: 500 }}>
                             [{rf.fieldType?.toUpperCase()}]
                           </span>
+                          {countBadge(sourceMappedCount(node.id, rf.name))}
                         </button>
                       ));
                       return [nodeItem, ...recordItems];
@@ -1852,6 +1891,7 @@ export const MappingEditorModal = ({
                             >
                               <span style={{ fontWeight: '500', color: '#1e293b' }}>{node.label || node.id}</span>
                               <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '6px' }}>({node.type})</span>
+                              {countBadge(targetMappedCount(node.id))}
                             </button>
                           );
                           const recordFields = node.inputs.filter(f => isRecordFieldType(f.fieldType));
@@ -1886,6 +1926,7 @@ export const MappingEditorModal = ({
                               <span style={{ fontSize: '10px', color: '#d97706', marginLeft: '4px', fontWeight: 500 }}>
                                 [{rf.fieldType?.toUpperCase()}]
                               </span>
+                              {countBadge(targetMappedCount(node.id, rf.name))}
                             </button>
                           ));
                           return [nodeItem, ...recordItems];

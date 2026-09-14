@@ -2485,7 +2485,14 @@ export default function App() {
             defaultEdgeOptions={{
               style: { strokeWidth: 3, stroke: '#b1b1b7' },
             }}
-            deleteKeyCode={containerFlowModal.isOpen ? null : ['Backspace', 'Delete']}
+            deleteKeyCode={(
+              // 어떤 모달이든 열려 있으면 캔버스 Delete/Backspace 비활성 (모달 안에서 Delete 시 노드 삭제 버그 방지)
+              containerFlowModal.isOpen || mappingEditorModal.isOpen || mappingModal.isOpen ||
+              scriptModal.isOpen || conditionModal.isOpen || mappingScriptModal.isOpen ||
+              errorModal.isOpen || forEachModal.isOpen || forModal.isOpen ||
+              (idChangeModal !== null) || isCodeModalOpen || isExportModalOpen ||
+              isIDOModalOpen || isImportModalOpen || isIOModalOpen || isTextEditModalOpen
+            ) ? null : ['Backspace', 'Delete']}
             className="bg-slate-50"
           >
             <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
