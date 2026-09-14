@@ -1188,8 +1188,14 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
     //    upstream(부모 체인) 탐색이 컨테이너 경계를 넘어 외부 노드까지 닿을 수 있도록
     //    AvailableNodeInfo에는 실제 소속 컨테이너 id(containerId)를 parentId로 복원한다.
     //    (nodes state/저장 data는 불변 — 매핑 모달용 임시 객체에만 반영)
+    const isLoopCanvas = canvasContainerType === 'For' || canvasContainerType === 'ForEach' || canvasContainerType === 'While';
     const internal = nodes.filter(n => !n.parentId).map(n => {
       const conv = convertNode(n);
+      // 반복문 컨테이너의 내부 start/end는 매핑 타겟이 될 수 없음 (요구사항)
+      // (ForEach start의 순회 output을 '소스'로 쓰는 기능은 유지 — 타겟 후보에서만 제외)
+      if (isLoopCanvas && (n.id === `${containerId}-start` || n.id === `${containerId}-end`)) {
+        (conv as any).noMappingTarget = true;
+      }
       // ForEach 내부 start: 컨테이너 저장 전이라 outputs가 비어 있으면, 순회 대상 노드의 output
       // (foreachStartOutputs, 연결 IDO 스키마)을 표시 시점에 주입해 매핑 소스로 바로 쓸 수 있게 한다.
       // AvailableNodeInfo(매핑 모달용 임시 객체)에만 반영 — nodes state/저장 data는 불변.
@@ -1561,7 +1567,11 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
             //  노드 편집은 더블클릭, 노드 삭제는 Delete/Backspace 키로 대체 (메인과 동일)
             // 입력 매핑 메뉴 노출 화이트리스트: CallDO 와 End 노드(내부 End 포함)만
             const isEndNode = node?.type === 'End' || node?.data?.isEnd || node?.data?.isInternalEnd;
-            const isMappingEligible = node?.type === 'CallDO' || isEndNode;
+            // 단, For/ForEach/While 루프 컨테이너의 내부 start/end 노드에는 입력 매핑을 노출하지 않는다 (요구사항)
+            const isLoopContainer = canvasContainerType === 'For' || canvasContainerType === 'ForEach' || canvasContainerType === 'While';
+            const isOwnBoundary = node?.id === `${containerId}-start` || node?.id === `${containerId}-end`
+              || !!node?.data?.isInternalStart || !!node?.data?.isInternalEnd;
+            const isMappingEligible = (node?.type === 'CallDO' || isEndNode) && !(isLoopContainer && isOwnBoundary);
 
             return (
               <>

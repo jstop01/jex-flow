@@ -49,6 +49,7 @@ interface FieldInfo {
 
 // 사용 가능한 노드 정보
 interface AvailableNodeInfo {
+  noMappingTarget?: boolean; // 매핑 타겟 후보에서 제외 (반복문 내부 start/end 등)
   id: string;
   label: string;
   type: string;
@@ -1421,7 +1422,7 @@ export const MappingEditorModal = ({
   // Start 노드 찾기 (소스 노드 목록에 포함)
   const startNode = availableNodes.find(n => n.type === 'Start');
   // End 노드 찾기 (타겟 노드 목록에 포함)
-  const endNode = availableNodes.find(n => n.type === 'End');
+  const endNode = availableNodes.find(n => n.type === 'End' && !(n as any).noMappingTarget);
 
   // 소스 노드 목록: upstream 노드 + Start 노드 + Variable 노드
   const sourceNodeCandidates = [...upstreamFilteredNodes];
@@ -1451,7 +1452,8 @@ export const MappingEditorModal = ({
     });
 
   // 타겟 노드 목록: downstream 노드 + End 노드 (INPUT이 있는 노드만, 없는 노드 제외)
-  const targetNodeCandidates = [...downstreamFilteredNodes];
+  // 반복문(For/ForEach/While) 내부 start/end 등 noMappingTarget 노드는 타겟 후보에서 제외
+  const targetNodeCandidates = [...downstreamFilteredNodes].filter(n => !(n as any).noMappingTarget);
   if (endNode && !targetNodeCandidates.find(n => n.id === endNode.id)) {
     targetNodeCandidates.push(endNode);
   }
