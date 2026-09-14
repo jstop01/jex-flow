@@ -14,23 +14,26 @@ interface CodeSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (item: ErrorCodeItem) => void;
-  // 직접 입력 모드: 사용자가 에러 메시지 텍스트를 직접 입력 (JSON은 description 재활용, code/codeName 비움)
-  onDirectInput?: (message: string) => void;
-  initialDirectMessage?: string;
+  // 직접 입력 모드: 코드/명칭을 직접 입력 (data.code / data.codeName 으로 저장)
+  onDirectInput?: (code: string, name: string) => void;
+  initialDirectCode?: string;
+  initialDirectName?: string;
 }
 
-export const CodeSelectionModal = ({ isOpen, onClose, onSelect, onDirectInput, initialDirectMessage = '' }: CodeSelectionModalProps) => {
+export const CodeSelectionModal = ({ isOpen, onClose, onSelect, onDirectInput, initialDirectCode = '', initialDirectName = '' }: CodeSelectionModalProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [errorCodes, setErrorCodes] = useState<ErrorCodeItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<'code' | 'direct'>('code');
-  const [directMessage, setDirectMessage] = useState('');
+  const [directCode, setDirectCode] = useState('');
+  const [directName, setDirectName] = useState('');
 
-  // 모달 열릴 때: 기존에 직접 입력된 메시지가 있으면 직접 입력 탭으로 시작
+  // 모달 열릴 때: 기존에 직접 입력된 코드가 있으면 직접 입력 탭으로 시작
   useEffect(() => {
     if (isOpen) {
-      setDirectMessage(initialDirectMessage || '');
-      setTab(initialDirectMessage ? 'direct' : 'code');
+      setDirectCode(initialDirectCode || '');
+      setDirectName(initialDirectName || '');
+      setTab(initialDirectCode ? 'direct' : 'code');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -109,18 +112,32 @@ export const CodeSelectionModal = ({ isOpen, onClose, onSelect, onDirectInput, i
 
         {/* 직접 입력 탭 */}
         {onDirectInput && tab === 'direct' ? (
-          <div className="flex-1 flex flex-col p-4 gap-2.5 bg-white">
+          <div className="flex-1 flex flex-col p-4 gap-3 bg-white">
             <div className="text-xs text-slate-500">
-              사용자에게 표시할 에러 메시지를 직접 입력하세요. (코드 선택 없이 이 메시지가 사용됩니다)
+              에러 코드와 명칭을 직접 입력하세요. (코드 목록에 없는 코드를 사용할 때)
             </div>
-            <textarea
-              value={directMessage}
-              onChange={(e) => setDirectMessage(e.target.value)}
-              placeholder="예: 계좌번호가 유효하지 않습니다."
-              className="flex-1 w-full text-sm border border-slate-300 rounded-lg p-3 focus:outline-none focus:border-[#5277f7] focus:ring-2 focus:ring-blue-100 resize-none text-slate-800"
-              autoFocus
-            />
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-slate-600">코드</label>
+              <input
+                type="text"
+                value={directCode}
+                onChange={(e) => setDirectCode(e.target.value)}
+                placeholder="예: ERR-9001"
+                autoFocus
+                className="w-full h-9 px-3 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-[#5277f7] focus:ring-2 focus:ring-blue-100 text-slate-800 font-mono"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-slate-600">명칭</label>
+              <input
+                type="text"
+                value={directName}
+                onChange={(e) => setDirectName(e.target.value)}
+                placeholder="예: 계좌번호 오류"
+                className="w-full h-9 px-3 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-[#5277f7] focus:ring-2 focus:ring-blue-100 text-slate-800"
+              />
+            </div>
+            <div className="flex justify-end gap-2 mt-auto">
               <button
                 onClick={onClose}
                 className="px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
@@ -128,8 +145,8 @@ export const CodeSelectionModal = ({ isOpen, onClose, onSelect, onDirectInput, i
                 취소
               </button>
               <button
-                disabled={!directMessage.trim()}
-                onClick={() => { onDirectInput(directMessage.trim()); onClose(); }}
+                disabled={!directCode.trim()}
+                onClick={() => { onDirectInput(directCode.trim(), directName.trim()); onClose(); }}
                 className="px-4 py-2 text-xs font-semibold text-white rounded-lg transition-colors disabled:bg-blue-200 disabled:cursor-not-allowed bg-[#5277f7] hover:bg-[#4064e0]"
               >
                 저장

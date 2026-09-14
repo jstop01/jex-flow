@@ -1742,20 +1742,24 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
         isOpen={codeModal.isOpen}
         onClose={() => setCodeModal({ isOpen: false, nodeId: null })}
         onSelect={handleCodeSelect}
-        onDirectInput={(message) => {
-          // 직접 입력 모드: description에 메시지 저장, 코드 관련 필드는 비움 (사용자 확정 계약)
+        onDirectInput={(code, name) => {
+          // 직접 입력 모드: 코드/명칭을 그대로 저장 (major/minor 없음 = 직접 입력 구분)
           if (codeModal.nodeId) {
-            updateNodeData(codeModal.nodeId, 'description', message);
-            updateNodeData(codeModal.nodeId, 'code', '');
-            updateNodeData(codeModal.nodeId, 'codeName', '');
+            updateNodeData(codeModal.nodeId, 'code', code);
+            updateNodeData(codeModal.nodeId, 'codeName', name);
             updateNodeData(codeModal.nodeId, 'majorCode', '');
             updateNodeData(codeModal.nodeId, 'minorCode', '');
+            updateNodeData(codeModal.nodeId, 'description', '');
           }
           setCodeModal({ isOpen: false, nodeId: null });
         }}
-        initialDirectMessage={(() => {
+        initialDirectCode={(() => {
           const n = nodes.find(nd => nd.id === codeModal.nodeId);
-          return n && !(n.data as any)?.code ? ((n.data as any)?.description || '') : '';
+          return n && (n.data as any)?.code && !(n.data as any)?.majorCode ? (n.data as any).code : '';
+        })()}
+        initialDirectName={(() => {
+          const n = nodes.find(nd => nd.id === codeModal.nodeId);
+          return n && (n.data as any)?.code && !(n.data as any)?.majorCode ? ((n.data as any)?.codeName || '') : '';
         })()}
       />
 

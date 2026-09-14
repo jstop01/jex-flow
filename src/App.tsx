@@ -2892,20 +2892,25 @@ export default function App() {
         isOpen={isCodeModalOpen}
         onClose={() => setIsCodeModalOpen(false)}
         onSelect={handleCodeSelect}
-        onDirectInput={(message) => {
-          // 직접 입력 모드: description에 메시지 저장, 코드 관련 필드는 비움 (사용자 확정 계약)
+        onDirectInput={(code, name) => {
+          // 직접 입력 모드: 코드/명칭을 그대로 저장 (major/minor 없음 = 직접 입력 구분)
           if (selectedNodeId) {
-            updateNodeData(selectedNodeId, 'description', message);
-            updateNodeData(selectedNodeId, 'code', '');
-            updateNodeData(selectedNodeId, 'codeName', '');
+            updateNodeData(selectedNodeId, 'code', code);
+            updateNodeData(selectedNodeId, 'codeName', name);
             updateNodeData(selectedNodeId, 'majorCode', '');
             updateNodeData(selectedNodeId, 'minorCode', '');
+            updateNodeData(selectedNodeId, 'description', '');
             setSelectedNodeId(null);
           }
         }}
-        initialDirectMessage={(() => {
+        initialDirectCode={(() => {
           const n = nodes.find(nd => nd.id === selectedNodeId);
-          return n && !n.data?.code ? (n.data?.description || '') : '';
+          // majorCode 없이 code만 있으면 직접 입력분 → 재편집 시 프리필
+          return n && n.data?.code && !n.data?.majorCode ? n.data.code : '';
+        })()}
+        initialDirectName={(() => {
+          const n = nodes.find(nd => nd.id === selectedNodeId);
+          return n && n.data?.code && !n.data?.majorCode ? (n.data?.codeName || '') : '';
         })()}
       />
 
