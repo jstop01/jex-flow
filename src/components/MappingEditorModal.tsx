@@ -68,7 +68,8 @@ interface MappingEditorModalProps {
   initialMappings: MappingConnection[];
   availableNodes: AvailableNodeInfo[];
   edges: Edge[]; // All edges to determine upstream connections
-  onSave: (mappings: MappingConnection[]) => void;
+  onSave: (mappings: MappingConnection[], loopMapping: boolean) => void;
+  initialLoopMapping?: boolean; // 노드 data.loopMapping (JSON 태그 loopMapping — 사용자 확정)
   fixedTargetNodeId?: string | null; // 타겟 노드를 고정할 때 사용 (입력 매핑 시)
   initialSourceNodeId?: string | null; // 소스 노드 디폴트(CallDO 입력 매핑 시 그 노드 자신)
 }
@@ -83,6 +84,7 @@ export const MappingEditorModal = ({
   onSave,
   fixedTargetNodeId,
   initialSourceNodeId,
+  initialLoopMapping = false,
 }: MappingEditorModalProps) => {
   const [mappings, setMappings] = useState<MappingConnection[]>([]);
   const [sourceNodeId, setSourceNodeId] = useState<string>('');
@@ -107,6 +109,8 @@ export const MappingEditorModal = ({
   const targetScrollRef = useRef<HTMLDivElement>(null);
   const [updateCounter, setUpdateCounter] = useState(0);
   const [refsReady, setRefsReady] = useState(false);
+  // Loop Mapping 여부 (백엔드로 loopMapping true/false 전달)
+  const [loopMapping, setLoopMapping] = useState<boolean>(!!initialLoopMapping);
 
   // 매핑 클릭으로 인한 노드 변경인지 추적하는 플래그
   const isNodeChangeFromMappingClick = useRef(false);
@@ -508,6 +512,7 @@ export const MappingEditorModal = ({
       });
 
       setMappings(migratedMappings);
+      setLoopMapping(!!initialLoopMapping);
 
       // fixedTargetNodeId가 있으면 타겟 노드를 고정 (입력 매핑 시)
       if (fixedTargetNodeId) {
@@ -1197,7 +1202,7 @@ export const MappingEditorModal = ({
   };
 
   const handleSave = () => {
-    onSave(mappings.map(canonicalizeMapping));
+    onSave(mappings.map(canonicalizeMapping), loopMapping);
     onClose();
   };
 
@@ -1527,6 +1532,25 @@ export const MappingEditorModal = ({
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Loop Mapping 체크박스 — data.loopMapping(true/false)로 저장되어 백엔드로 전달 */}
+            <label
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 12px', backgroundColor: '#ffffff',
+                border: loopMapping ? '1px solid #5277f7' : '1px solid #e2e8f0',
+                borderRadius: 8, cursor: 'pointer', userSelect: 'none',
+                fontSize: 13, fontWeight: 600, color: loopMapping ? '#5277f7' : '#64748b',
+              }}
+              title="Loop Mapping 여부 (loopMapping true/false로 저장)"
+            >
+              <input
+                type="checkbox"
+                checked={loopMapping}
+                onChange={(e) => setLoopMapping(e.target.checked)}
+                style={{ width: 14, height: 14, accentColor: '#5277f7', cursor: 'pointer' }}
+              />
+              Loop Mapping
+            </label>
             <button
               onClick={() => setAutoMapModalOpen(true)}
               disabled={!sourceNodeId || !targetNodeId}

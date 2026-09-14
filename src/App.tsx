@@ -1864,9 +1864,11 @@ export default function App() {
   }, [mappingModal.nodeId, updateNodeData]);
 
   // Handler for new Mapping Editor Modal
-  const handleMappingEditorSave = useCallback((mappings: MappingConnection[]) => {
+  const handleMappingEditorSave = useCallback((mappings: MappingConnection[], loopMapping: boolean) => {
     if (mappingEditorModal.nodeId) {
       updateNodeData(mappingEditorModal.nodeId, 'mappings', mappings);
+      // Loop Mapping 여부 (JSON 태그 loopMapping true/false — 사용자 확정)
+      updateNodeData(mappingEditorModal.nodeId, 'loopMapping', !!loopMapping);
       setMappingEditorModal({ isOpen: false, nodeId: null, mappings: [] });
     }
   }, [mappingEditorModal.nodeId, updateNodeData]);
@@ -2742,6 +2744,7 @@ export default function App() {
         onSave={handleMappingEditorSave}
         fixedTargetNodeId={mappingEditorModal.fixedTargetNodeId}
         initialSourceNodeId={mappingEditorModal.initialSourceNodeId}
+        initialLoopMapping={!!(nodes.find(n => n.id === mappingEditorModal.nodeId)?.data as any)?.loopMapping}
       />
 
       <ConditionEditModal

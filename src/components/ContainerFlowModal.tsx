@@ -1098,9 +1098,11 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
   }, [codeModal.nodeId, updateNodeData]);
 
   // MappingEditor 저장 핸들러
-  const handleMappingEditorSave = useCallback((mappings: MappingConnection[]) => {
+  const handleMappingEditorSave = useCallback((mappings: MappingConnection[], loopMapping: boolean) => {
     if (mappingEditorModal.nodeId) {
       updateNodeData(mappingEditorModal.nodeId, 'mappings', mappings);
+      // Loop Mapping 여부 (JSON 태그 loopMapping true/false — 사용자 확정)
+      updateNodeData(mappingEditorModal.nodeId, 'loopMapping', !!loopMapping);
     }
     setMappingEditorModal({ isOpen: false, nodeId: null, mappings: [] });
   }, [mappingEditorModal.nodeId, updateNodeData]);
@@ -1765,6 +1767,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
         edges={mappingEdges}
         onSave={handleMappingEditorSave}
         fixedTargetNodeId={mappingEditorModal.fixedTargetNodeId}
+        initialLoopMapping={!!(nodes.find(n => n.id === mappingEditorModal.nodeId)?.data as any)?.loopMapping}
       />
 
       {/* 중첩 ContainerFlowModal (for, forEach, while 노드 내부 편집용) */}

@@ -7,11 +7,11 @@ import { Node, Edge } from 'reactflow';
  */
 const SAVE_DATA_FIELDS: Record<string, string[]> = {
   Start:     ['label', 'isStart', 'inputMessage', 'outputMessage', 'outputs'],
-  End:       ['label', 'isEnd', 'mappings'],
+  End:       ['label', 'isEnd', 'mappings', 'loopMapping'],
   Variable:  ['label', 'variableName', 'expression', 'mappings'],
-  CallDO:    ['label', 'ido', 'returnType', 'code', 'codeName', 'description', 'returnTypeOptions', 'mappings', 'mappingScript'],
+  CallDO:    ['label', 'ido', 'returnType', 'code', 'codeName', 'description', 'returnTypeOptions', 'mappings', 'mappingScript', 'loopMapping'],
   Process:   ['label', 'serviceType', 'serviceTypeInput', 'ido', 'returnType', 'code', 'codeName', 'description', 'mappings'],
-  Mapping:   ['label', 'mappings', 'inputMappings'],
+  Mapping:   ['label', 'mappings', 'inputMappings', 'loopMapping'],
   IfElse:    ['label', 'expression', 'mappings'],
   Switch:    ['label', 'expression', 'cases', 'mappings'],
   Error:     ['label', 'code', 'codeName', 'description', 'mappings'],
@@ -48,6 +48,8 @@ export const cleanNodeForExport = (node: Node): any => {
     if (data.mappings) cleanData.mappings = data.mappings;
     // 매핑 스크립트 보존 (JSON 태그 mappingScript — 사용자 확정)
     if (data.mappingScript) cleanData.mappingScript = data.mappingScript;
+    // Loop Mapping 여부 보존 (JSON 태그 loopMapping true/false — 사용자 확정)
+    if (data.loopMapping !== undefined) cleanData.loopMapping = data.loopMapping;
   } else {
     for (const field of allowedFields) {
       if (data[field] !== undefined) {
