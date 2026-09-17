@@ -3841,3 +3841,21 @@ html {
   right: -16px;
   bottom: -16px;
 }
+
+/* ── 엣지(연결선) 선택 하이라이트 ── */
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:focus .react-flow__edge-path,
+.react-flow__edge:focus-visible .react-flow__edge-path {
+  stroke: #5277f7 !important;
+  stroke-width: 4 !important;
+  filter: drop-shadow(0 0 4px rgba(82, 119, 247, 0.55));
+}
+.react-flow__edge.selected .react-flow__arrowhead path,
+.react-flow__edge.selected marker path {
+  fill: #5277f7 !important;
+  stroke: #5277f7 !important;
+}
+/* hover 시 옅은 강조로 클릭 가능함을 표시 */
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: #7c95f9;
+}
