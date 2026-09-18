@@ -3859,3 +3859,29 @@ html {
 .react-flow__edge:hover .react-flow__edge-path {
   stroke: #7c95f9;
 }
+
+/* ── 엣지에 노드 끼워넣기: 드래그 중 삽입 후보 하이라이트 ── */
+.react-flow__edge.insert-candidate .react-flow__edge-path {
+  stroke: #10b981 !important;
+  stroke-width: 5 !important;
+  stroke-dasharray: 8 5;
+  animation: insert-dash 0.6s linear infinite;
+  filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.6));
+}
+@keyframes insert-dash { to { stroke-dashoffset: -13; } }
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__edge.insert-candidate .react-flow__edge-path { animation: none; }
+}
+
+/* ── 노드 hover: 살짝 떠오르는 그림자 ── */
+.react-flow__node { transition: filter 0.16s ease, transform 0.16s ease; }
+.react-flow__node:hover { filter: drop-shadow(0 6px 16px rgba(24, 33, 49, 0.18)); }
+.react-flow__node.dragging { filter: drop-shadow(0 10px 22px rgba(24, 33, 49, 0.28)); }
+
+/* ── 연결점(핸들): hover 시 커져서 잡기 쉽게 ── */
+.react-flow__handle { transition: transform 0.12s ease, box-shadow 0.12s ease; }
+.react-flow__node:hover .react-flow__handle { transform: scale(1.25); }
+.react-flow__handle:hover { transform: scale(1.5); box-shadow: 0 0 0 4px rgba(82, 119, 247, 0.25); }
+
+/* ── 연결선: 실행 방향으로 흐르는 애니메이션 (연결 드래그 중) ── */
+.react-flow__connection-path { stroke: #5277f7; stroke-width: 2.5; }

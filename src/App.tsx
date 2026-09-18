@@ -608,7 +608,70 @@ export default function App() {
     [nodes, edges]
   );
 
+  // 드래그한 노드가 얹힌 엣지(끼워넣을 대상)를 찾는다. 노드 박스가 엣지 선분에
+  // 가깝기만 하면 잡히도록 임계값을 노드 크기에 비례시켜 "잘 안 끼워지는" 문제를 줄였다.
+  const getInsertEdge = useCallback((node: Node): Edge | undefined => {
+    const nodeWidth = node.width || 150;
+    const nodeHeight = node.height || 40;
+    const nodeCenterX = node.position.x + nodeWidth / 2;
+    const nodeCenterY = node.position.y + nodeHeight / 2;
+    // 노드가 엣지를 시각적으로 덮으면 걸리도록: 노드 반높이 + 여유. (기존 고정 25px는 너무 빡빡했음)
+    const threshold = Math.max(48, nodeHeight / 2 + 30);
+
+    return edges.find((edge) => {
+      const sourceNode = nodes.find((n) => n.id === edge.source);
+      const targetNode = nodes.find((n) => n.id === edge.target);
+      if (!sourceNode || !targetNode) return false;
+      if (edge.source === node.id || edge.target === node.id) return false;
+
+      // 같은 컨테이너 안에서만 끼워넣기 허용
+      if (sourceNode.parentId !== node.parentId || targetNode.parentId !== node.parentId) return false;
+
+      const sourceX = sourceNode.position.x + (sourceNode.width || 150) / 2;
+      const sourceY = sourceNode.position.y + (sourceNode.height || 40) / 2;
+      const targetX = targetNode.position.x + (targetNode.width || 150) / 2;
+      const targetY = targetNode.position.y + (targetNode.height || 40) / 2;
+
+      const A = nodeCenterX - sourceX, B = nodeCenterY - sourceY;
+      const C = targetX - sourceX, D = targetY - sourceY;
+      const lenSq = C * C + D * D;
+      let param = lenSq !== 0 ? (A * C + B * D) / lenSq : -1;
+      let xx, yy;
+      if (param < 0) { xx = sourceX; yy = sourceY; }
+      else if (param > 1) { xx = targetX; yy = targetY; }
+      else { xx = sourceX + param * C; yy = sourceY + param * D; }
+      const dist = Math.sqrt((nodeCenterX - xx) ** 2 + (nodeCenterY - yy) ** 2);
+      return dist < threshold;
+    });
+  }, [nodes, edges]);
+
+  // 드래그 중: 끼워넣을 후보 엣지를 실시간으로 하이라이트해 "여기 놓으면 삽입된다"를 보여준다.
+  const onNodeDrag = useCallback((event: React.MouseEvent, node: Node) => {
+    if (node.data?.isInternalStart || node.data?.isInternalEnd) return;
+    const target = getInsertEdge(node);
+    setEdges((eds) => {
+      let changed = false;
+      const next = eds.map((e) => {
+        const shouldMark = !!target && e.id === target.id;
+        const isMarked = !!e.className && e.className.includes('insert-candidate');
+        if (shouldMark && !isMarked) { changed = true; return { ...e, className: `${e.className || ''} insert-candidate`.trim() }; }
+        if (!shouldMark && isMarked) { changed = true; return { ...e, className: (e.className || '').replace('insert-candidate', '').trim() }; }
+        return e;
+      });
+      return changed ? next : eds;
+    });
+  }, [getInsertEdge]);
+
+  const clearInsertHighlight = useCallback(() => {
+    setEdges((eds) => {
+      if (!eds.some((e) => e.className && e.className.includes('insert-candidate'))) return eds;
+      return eds.map((e) => e.className && e.className.includes('insert-candidate')
+        ? { ...e, className: e.className.replace('insert-candidate', '').trim() } : e);
+    });
+  }, []);
+
   const onNodeDragStop = useCallback((event: React.MouseEvent, node: Node) => {
+    clearInsertHighlight();
     // [NEW] Internal START/END nodes cannot be dragged out of their container
     // They are locked to their container with extent: 'parent'
     if (node.data?.isInternalStart || node.data?.isInternalEnd) {
@@ -725,68 +788,8 @@ export default function App() {
       return;
     }
 
-    // Check if the node is dropped on an edge
-    const nodeWidth = node.width || 150;
-    const nodeHeight = node.height || 40;
-    const nodeCenterX = node.position.x + nodeWidth / 2;
-    const nodeCenterY = node.position.y + nodeHeight / 2;
-
-    const overlappingEdge = edges.find((edge) => {
-      const sourceNode = nodes.find((n) => n.id === edge.source);
-      const targetNode = nodes.find((n) => n.id === edge.target);
-
-      if (!sourceNode || !targetNode) return false;
-
-      // Prevent splitting an edge that is already connected to the dragged node
-      if (edge.source === node.id || edge.target === node.id) return false;
-
-      // Container 경계 검증: 같은 컨테이너 내에서만 edge snapping 허용
-      const sourceParentId = sourceNode.parentId;
-      const targetParentId = targetNode.parentId;
-      const nodeParentId = node.parentId;
-
-      // 드래그한 노드와 edge의 source/target이 같은 컨테이너에 있어야 함
-      if (sourceParentId !== nodeParentId || targetParentId !== nodeParentId) {
-        return false;
-      }
-
-      const sourceX = sourceNode.position.x + (sourceNode.width || 150) / 2;
-      const sourceY = sourceNode.position.y + (sourceNode.height || 40) / 2;
-      const targetX = targetNode.position.x + (targetNode.width || 150) / 2;
-      const targetY = targetNode.position.y + (targetNode.height || 40) / 2;
-
-      // Calculate distance from point to line segment
-      const A = nodeCenterX - sourceX;
-      const B = nodeCenterY - sourceY;
-      const C = targetX - sourceX;
-      const D = targetY - sourceY;
-
-      const dot = A * C + B * D;
-      const lenSq = C * C + D * D;
-      let param = -1;
-
-      if (lenSq !== 0) param = dot / lenSq;
-
-      let xx, yy;
-
-      if (param < 0) {
-        xx = sourceX;
-        yy = sourceY;
-      } else if (param > 1) {
-        xx = targetX;
-        yy = targetY;
-      } else {
-        xx = sourceX + param * C;
-        yy = sourceY + param * D;
-      }
-
-      const dx = nodeCenterX - xx;
-      const dy = nodeCenterY - yy;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-
-      // Threshold for "snapping" to edge
-      return distance < 25;
-    });
+    // Check if the node is dropped on an edge (판정은 getInsertEdge로 통일 — 드래그 중 하이라이트와 동일 기준)
+    const overlappingEdge = getInsertEdge(node);
 
     if (overlappingEdge) {
       // 새 연결 유효성 검증
@@ -2112,13 +2115,22 @@ export default function App() {
     return '';
   };
 
+  // 저장 시 UI 전용 className(insert-candidate 등)이 JSON에 새지 않도록 정리
+  const cleanEdgesForExport = useCallback((eds: Edge[]) =>
+    eds.map((e) => {
+      if (!e.className) return e;
+      const cn = e.className.replace('insert-candidate', '').trim();
+      const { className, ...rest } = e;
+      return cn ? { ...rest, className: cn } : rest;
+    }), []);
+
   const exportFlow = useCallback(() => {
     // 모든 노드를 nodes 하나에 통합 (이전 형식 호환)
     const allCleanNodes = nodes.map(n => cleanNodeForExport(n));
 
     const flowData: any = {
       nodes: allCleanNodes,
-      edges,
+      edges: cleanEdgesForExport(edges),
       version: '2.0',
       timestamp: Date.now(),
     };
@@ -2173,7 +2185,7 @@ export default function App() {
 
       const flowData: any = {
         nodes: allCleanNodes,
-        edges,
+        edges: cleanEdgesForExport(edges),
         version: '2.0',
         timestamp: Date.now(),
       };
@@ -2465,6 +2477,7 @@ export default function App() {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             isValidConnection={isValidConnection}
+            onNodeDrag={onNodeDrag}
             onNodeDragStop={onNodeDragStop}
             onNodeClick={onNodeClick}
             onNodeDoubleClick={onNodeDoubleClick}
