@@ -3873,10 +3873,31 @@ html {
   .react-flow__edge.insert-candidate .react-flow__edge-path { animation: none; }
 }
 
+/* ── 실시간 검증 오류 배지: 노드 우상단 빨간 '!' (App.tsx displayNodes가 className 부여) ── */
+.react-flow__node.has-validation-error::after {
+  content: '!';
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  z-index: 10;
+}
+
 /* ── 노드 hover: 살짝 떠오르는 그림자 ── */
-.react-flow__node { transition: filter 0.16s ease, transform 0.16s ease; }
+/* transform(위치)은 절대 transition 걸지 않는다 — 드래그가 커서를 늦게 따라와 끊겨 보임. filter만 부드럽게. */
+.react-flow__node { transition: filter 0.16s ease; }
 .react-flow__node:hover { filter: drop-shadow(0 6px 16px rgba(24, 33, 49, 0.18)); }
-.react-flow__node.dragging { filter: drop-shadow(0 10px 22px rgba(24, 33, 49, 0.28)); }
+.react-flow__node.dragging { filter: drop-shadow(0 10px 22px rgba(24, 33, 49, 0.28)); transition: none; }
 
 /* ── 연결점(핸들): hover 시 커져서 잡기 쉽게 ── */
 .react-flow__handle { transition: transform 0.12s ease, box-shadow 0.12s ease; }

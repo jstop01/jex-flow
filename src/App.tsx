@@ -11,6 +11,8 @@ import ReactFlow, {
   applyNodeChanges,
   applyEdgeChanges,
   addEdge,
+  updateEdge,
+  NodePositionChange,
   OnNodesChange,
   OnEdgesChange,
   OnConnect,
@@ -28,6 +30,8 @@ import { VariableNode } from './components/VariableNode';
 import { ConditionNode } from './components/ConditionNode';
 import { SwitchNode } from './components/SwitchNode';
 import { useUndoRedo } from './hooks/useUndoRedo';
+import { getHelperLines } from './utils/helperLines';
+import { HelperLines } from './components/HelperLines';
 import { IDOSearchModal, ComponentItem } from './components/IDOSearchModal';
 import { fetchComponentIO } from './services/componentService';
 import { JsonExportModal } from './components/JsonExportModal';
@@ -80,7 +84,7 @@ import { ContainerFlowModal, LoopData } from './components/ContainerFlowModal';
 import { ForEditModal } from './components/ForEditModal';
 import { ForEachEditModal } from './components/ForEachEditModal';
 import { separateNodesAndGroups, cleanNodeForExport } from './utils/relationshipUtils';
-import { validateFlow } from './utils/validationUtils';
+import { validateFlow, ValidationError } from './utils/validationUtils';
 import { useActionApproval } from './hooks/useActionApproval';
 import { ApprovalOverlay } from './components/ApprovalOverlay';
 import { ApprovalActionType } from './types/approval';
@@ -397,6 +401,12 @@ export default function App() {
 
   // Error Modal State
   const [errorNodeIds, setErrorNodeIds] = useState<Set<string>>(new Set());
+  // 드래그 중 정렬 가이드선 (flow 좌표)
+  const [helperLineH, setHelperLineH] = useState<number | undefined>(undefined);
+  const [helperLineV, setHelperLineV] = useState<number | undefined>(undefined);
+  // 실시간 검증(편집 중 표시용, 저장 차단은 saveToParent의 검증이 담당)
+  const [liveErrors, setLiveErrors] = useState<ValidationError[]>([]);
+  const [liveErrorsOpen, setLiveErrorsOpen] = useState(false);
   const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string; allowIgnore?: boolean }>({
     isOpen: false,
     title: '',
@@ -432,6 +442,16 @@ export default function App() {
         return;
       }
       setNodes((nds) => {
+        // 단일 노드 드래그 중: 다른 노드와 가장자리/중심이 맞으면 스냅 + 가이드선 표시
+        if (changes.length === 1 && changes[0].type === 'position' && changes[0].dragging && changes[0].position) {
+          const pc = changes[0] as NodePositionChange;
+          const hl = getHelperLines(pc, nds);
+          setHelperLineH(hl.horizontal);
+          setHelperLineV(hl.vertical);
+          if (hl.snapPosition.x !== undefined || hl.snapPosition.y !== undefined) {
+            changes = [{ ...pc, position: { x: hl.snapPosition.x ?? pc.position!.x, y: hl.snapPosition.y ?? pc.position!.y } }];
+          }
+        }
         const removeChanges = changes.filter((c) => c.type === 'remove');
 
         // 컨테이너 노드 삭제 시 자식 노드들도 함께 삭제
@@ -541,6 +561,25 @@ export default function App() {
         }
 
         const nextEdges = addEdge(connection, filtered);
+        takeSnapshot(nodes, nextEdges);
+        return nextEdges;
+      });
+    },
+    [nodes, takeSnapshot]
+  );
+
+  // 연결선 끝점을 잡아 다른 노드/핸들로 다시 잇기 (isValidConnection 규칙은 React Flow가 동일 적용)
+  const onEdgeUpdate = useCallback(
+    (oldEdge: Edge, newConnection: Connection) => {
+      setEdges((eds) => {
+        const sourceNode = nodes.find((n) => n.id === newConnection.source);
+        const isMultiHandle = ['IfElse', 'Switch', 'CallDO'].includes(sourceNode?.type || '');
+        // onConnect와 동일한 "소스(핸들)당 연결 1개" 규칙: 새 소스의 기존 연결 제거 (재연결 대상 자신은 제외)
+        const filtered = eds.filter((e) =>
+          e.id === oldEdge.id ||
+          !(e.source === newConnection.source &&
+            (!isMultiHandle || (e.sourceHandle || null) === (newConnection.sourceHandle || null))));
+        const nextEdges = updateEdge(oldEdge, newConnection, filtered);
         takeSnapshot(nodes, nextEdges);
         return nextEdges;
       });
@@ -672,6 +711,8 @@ export default function App() {
 
   const onNodeDragStop = useCallback((event: React.MouseEvent, node: Node) => {
     clearInsertHighlight();
+    setHelperLineH(undefined);
+    setHelperLineV(undefined);
     // [NEW] Internal START/END nodes cannot be dragged out of their container
     // They are locked to their container with extent: 'parent'
     if (node.data?.isInternalStart || node.data?.isInternalEnd) {
@@ -2124,6 +2165,119 @@ export default function App() {
       return cn ? { ...rest, className: cn } : rest;
     }), []);
 
+  // ── 노드 검색: 이름/ID로 찾아 화면 중앙 이동 + 선택 ──
+  const [searchText, setSearchText] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  // 검색창 드롭다운 후보: 입력값이 비면 전체, 있으면 id/label 부분일치 (최대 8개)
+  const searchOptions = useMemo(() => {
+    const key = searchText.trim().toLowerCase();
+    return nodes
+      .filter((n) => !n.hidden)
+      .filter((n) => !key || n.id.toLowerCase().includes(key) || String((n.data as any)?.label || '').toLowerCase().includes(key))
+      .slice(0, 8)
+      .map((n) => ({ id: n.id, label: String((n.data as any)?.label || ''), type: n.type || '' }));
+  }, [nodes, searchText]);
+  const runSearch = useCallback((q: string) => {
+    const key = q.trim().toLowerCase();
+    if (!key) return;
+    setSearchOpen(false);
+    // id 정확 일치 우선(드롭다운 선택 시), 없으면 id/label 부분 일치
+    const hit = nodes.find((n) => !n.hidden && n.id.toLowerCase() === key) || nodes.find((n) => {
+      if (n.hidden) return false;
+      const label = String((n.data as any)?.label || '');
+      return n.id.toLowerCase().includes(key) || label.toLowerCase().includes(key);
+    });
+    if (!hit) return;
+    const inst = reactFlowInstanceRef.current;
+    if (inst) {
+      const w = (hit.width || 180), h = (hit.height || 60);
+      inst.setCenter(hit.position.x + w / 2, hit.position.y + h / 2, { zoom: 1.1, duration: 400 });
+    }
+    setSelectedNodeId(hit.id);
+    setNodes((nds) => nds.map((n) => ({ ...n, selected: n.id === hit.id })));
+  }, [nodes]);
+
+  // ── 자동 정렬: 최상위 노드를 start→end 흐름대로 위→아래 재배치 ──
+  const autoLayout = useCallback(() => {
+    const tops = nodes.filter((n) => !n.parentId && !n.hidden);
+    if (tops.length === 0) return;
+    const idset = new Set(tops.map((n) => n.id));
+    const adj = new Map<string, string[]>();
+    edges.forEach((e) => {
+      if (idset.has(e.source) && idset.has(e.target)) {
+        (adj.get(e.source) || adj.set(e.source, []).get(e.source)!).push(e.target);
+      }
+    });
+    const indeg = new Map<string, number>();
+    tops.forEach((n) => indeg.set(n.id, 0));
+    edges.forEach((e) => { if (idset.has(e.source) && idset.has(e.target)) indeg.set(e.target, (indeg.get(e.target) || 0) + 1); });
+    // 레벨(위상) 계산 — Kahn 방식: 모든 부모가 처리된 뒤에야 자식을 큐에 넣어
+    // 다이아몬드 합류 노드의 레벨이 항상 최대 경로 기준으로 잡히도록 한다.
+    const level = new Map<string, number>();
+    const remIn = new Map<string, number>();
+    tops.forEach((n) => remIn.set(n.id, indeg.get(n.id) || 0));
+    const queue = tops.filter((n) => (indeg.get(n.id) || 0) === 0).map((n) => n.id);
+    queue.forEach((id) => level.set(id, 0));
+    let head = 0;
+    while (head < queue.length) {
+      const cur = queue[head++]; const lv = level.get(cur) || 0;
+      (adj.get(cur) || []).forEach((nx) => {
+        level.set(nx, Math.max(level.get(nx) ?? 0, lv + 1));
+        remIn.set(nx, (remIn.get(nx) || 0) - 1);
+        if ((remIn.get(nx) || 0) <= 0) queue.push(nx);
+      });
+    }
+    tops.forEach((n) => { if (!level.has(n.id)) level.set(n.id, 0); });
+    // 선이 하나도 연결되지 않은 노드는 흐름 배치에서 빼고 오른쪽 한 열에 따로 모은다
+    // (start 옆 level 0에 섞이면 흐름이 꼬여 보임)
+    const linkedIds = new Set<string>();
+    edges.forEach((e) => { if (idset.has(e.source) && idset.has(e.target)) { linkedIds.add(e.source); linkedIds.add(e.target); } });
+    const linked = tops.filter((n) => linkedIds.has(n.id));
+    const loose = tops.filter((n) => !linkedIds.has(n.id));
+    // 노드 실제 크기 반영 — 고정 간격이면 큰 노드(CallDO/컨테이너)가 겹침
+    const nodeById = new Map<string, Node>(tops.map((n) => [n.id, n]));
+    const sizeOf = (n: Node) => {
+      const isC = ['Method', 'While', 'For', 'ForEach'].includes(n.type || '');
+      const styleW = typeof n.style?.width === 'number' ? n.style.width as number : undefined;
+      const styleH = typeof n.style?.height === 'number' ? n.style.height as number : undefined;
+      const w = n.width || styleW || (isC ? 340 : n.type === 'CallDO' ? 240 : 190);
+      const h = n.height || styleH || (isC ? 300 : n.type === 'CallDO' ? 240 : 130);
+      return { w, h };
+    };
+    // 레벨별 그룹핑
+    const byLevel = new Map<number, string[]>();
+    linked.forEach((n) => { const lv = level.get(n.id)!; (byLevel.get(lv) || byLevel.set(lv, []).get(lv)!).push(n.id); });
+    const HGAP = 90, VGAP = 90, CX = 600;
+    const pos = new Map<string, { x: number; y: number }>();
+    let curY = 80;
+    let maxRight = CX;
+    [...byLevel.keys()].sort((a, b) => a - b).forEach((lv) => {
+      const ids = byLevel.get(lv)!;
+      const sizes = ids.map((id) => sizeOf(nodeById.get(id)!));
+      const totalW = sizes.reduce((s, z) => s + z.w, 0) + HGAP * (ids.length - 1);
+      const maxH = Math.max(...sizes.map((z) => z.h));
+      let x = CX - totalW / 2;
+      ids.forEach((id, i) => {
+        // 노드 높이가 레벨 최대보다 작으면 수직 중앙 정렬
+        pos.set(id, { x, y: curY + (maxH - sizes[i].h) / 2 });
+        x += sizes[i].w + HGAP;
+      });
+      maxRight = Math.max(maxRight, x - HGAP);
+      curY += maxH + VGAP;
+    });
+    // 미연결 노드: 흐름 오른쪽 옆 한 열에 위→아래로 쌓기
+    const looseX = linked.length > 0 ? maxRight + HGAP * 2 : CX;
+    let looseY = 80;
+    loose.forEach((n) => {
+      pos.set(n.id, { x: looseX, y: looseY });
+      looseY += sizeOf(n).h + VGAP;
+    });
+    const nextNodes = nodes.map((n) => pos.has(n.id) ? { ...n, position: pos.get(n.id)! } : n);
+    setNodes(nextNodes);
+    setTimeout(() => reactFlowInstanceRef.current?.fitView({ padding: 0.3, duration: 500 }), 60);
+    takeSnapshot(nextNodes, edges);
+  }, [nodes, edges, takeSnapshot, setNodes]);
+
   const exportFlow = useCallback(() => {
     // 모든 노드를 nodes 하나에 통합 (이전 형식 호환)
     const allCleanNodes = nodes.map(n => cleanNodeForExport(n));
@@ -2409,6 +2563,17 @@ export default function App() {
   const btnClass = "h-[26px] px-[10px] rounded-[4px] bg-[#5277f7] text-white text-xs font-medium flex items-center justify-center gap-1.5 hover:bg-[#4162d9] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm";
   const btnRedClass = "h-[26px] px-[10px] rounded-[4px] bg-red-500 text-white text-xs font-medium flex items-center justify-center gap-1.5 hover:bg-red-600 transition-colors shadow-sm";
 
+  // 실시간 검증: 편집이 멈춘 뒤 400ms에 한 번 (저장 시 검증과 같은 validateFlow 사용)
+  useEffect(() => {
+    const timer = setTimeout(() => setLiveErrors(validateFlow(nodes, edges).errors), 400);
+    return () => clearTimeout(timer);
+  }, [nodes, edges]);
+  const liveErrorNodeIds = useMemo(() => {
+    const ids = new Set<string>();
+    liveErrors.forEach((e) => e.nodeIds?.forEach((id) => ids.add(id)));
+    return ids;
+  }, [liveErrors]);
+
   // 기존 broken 노드 대응: 축소된 컨테이너의 자식 노드를 hidden:true로 강제
   const displayNodes = useMemo(() => {
     return nodes.map(node => {
@@ -2425,9 +2590,13 @@ export default function App() {
           style: { ...node.style, border: '3px solid #ef4444', borderRadius: '8px', boxShadow: '0 0 12px rgba(239,68,68,0.4)' },
         };
       }
+      // 실시간 검증 오류: 모서리 배지 (CSS .has-validation-error::after)
+      if (liveErrorNodeIds.has(node.id)) {
+        return { ...node, className: `${node.className || ''} has-validation-error`.trim() };
+      }
       return node;
     });
-  }, [nodes, errorNodeIds]);
+  }, [nodes, errorNodeIds, liveErrorNodeIds]);
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden">
@@ -2471,11 +2640,15 @@ export default function App() {
         {/* Canvas Area */}
         <div className="flex-1 min-w-0 relative bg-slate-50">
           <ReactFlow
+            snapToGrid={true}
+            snapGrid={[16, 16]}
             nodes={displayNodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onEdgeUpdate={onEdgeUpdate}
+            edgeUpdaterRadius={16}
             isValidConnection={isValidConnection}
             onNodeDrag={onNodeDrag}
             onNodeDragStop={onNodeDragStop}
@@ -2510,6 +2683,72 @@ export default function App() {
           >
             <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
             <Controls className="bg-white border border-slate-200 shadow-md rounded-lg overflow-hidden" />
+            <HelperLines horizontal={helperLineH} vertical={helperLineV} />
+            <Panel position="top-right">
+              <div className="flex items-center gap-1.5">
+                {liveErrors.length > 0 && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setLiveErrorsOpen((v) => !v)}
+                      title="편집 중 검증 오류 (클릭하면 목록)"
+                      className="h-[26px] px-[10px] rounded-[4px] bg-white border border-red-200 text-red-600 text-xs font-medium flex items-center gap-1.5 hover:bg-red-50 transition-colors shadow-sm shrink-0"
+                    >⚠ 검증 오류 {liveErrors.length}건</button>
+                    {liveErrorsOpen && (
+                      <div className="absolute top-full right-0 mt-1 w-72 bg-white rounded-lg shadow-xl z-10 border border-slate-200 py-1 max-h-48 overflow-auto">
+                        {liveErrors.map((e, i) => (
+                          <button
+                            key={i}
+                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 transition-colors"
+                            onMouseDown={(ev) => { ev.preventDefault(); if (e.nodeIds?.[0]) runSearch(e.nodeIds[0]); }}
+                          >
+                            <span className="text-slate-700">{e.message}</span>
+                            {e.nodeIds?.length ? <span className="ml-2 text-slate-400">{e.nodeIds.join(', ')}</span> : null}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="relative">
+                  <input
+                    value={searchText}
+                    onChange={(e) => { setSearchText(e.target.value); setSearchOpen(true); }}
+                    onFocus={() => setSearchOpen(true)}
+                    onBlur={() => setSearchOpen(false)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') runSearch(searchText);
+                      else if (e.key === 'Escape') setSearchOpen(false);
+                    }}
+                    placeholder="노드 검색 (이름/ID)"
+                    className="w-44 h-[26px] px-2 border border-slate-300 rounded-[4px] bg-white text-xs focus:outline-none focus:ring-2 focus:ring-[#5277f7] focus:border-transparent shadow-sm"
+                  />
+                  {searchOpen && searchOptions.length > 0 && (
+                    <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-xl z-10 border border-slate-200 py-1 max-h-48 overflow-auto">
+                      {searchOptions.map((opt) => (
+                        <button
+                          key={opt.id}
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 transition-colors"
+                          onMouseDown={(e) => { e.preventDefault(); setSearchText(opt.label || opt.id); runSearch(opt.id); }}
+                        >
+                          <span className="text-slate-700">{opt.label || opt.id}</span>
+                          <span className="ml-2 text-slate-400">{opt.type}{opt.label ? ` · ${opt.id}` : ''}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => runSearch(searchText)}
+                  title="검색"
+                  className={`${btnClass} shrink-0`}
+                >찾기</button>
+                <button
+                  onClick={autoLayout}
+                  title="노드 자동 정렬"
+                  className={`${btnClass} shrink-0`}
+                >자동 정렬</button>
+              </div>
+            </Panel>
 
             <MiniMap
               nodeStrokeWidth={3}

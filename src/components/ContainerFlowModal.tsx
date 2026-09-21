@@ -3,7 +3,10 @@ import ReactFlow, {
   Node,
   Edge,
   addEdge,
+  updateEdge,
   Connection,
+  NodeChange,
+  NodePositionChange,
   useNodesState,
   useEdgesState,
   Controls,
@@ -13,8 +16,10 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { X, Save, FolderOpen, Repeat, Repeat2, RotateCw, Workflow, Database, Split, GitMerge, AlertCircle, Ban, Layers, Phone, Code, ChevronDown, Settings, Trash2, Edit3, Undo2, Redo2, ArrowDownToLine, ArrowRightLeft, FileCode2 } from 'lucide-react';
+import { X, Save, FolderOpen, Repeat, Repeat2, RotateCw, RotateCcw, Workflow, Database, Split, GitMerge, AlertCircle, Ban, Layers, Phone, Code, ChevronDown, Settings, Trash2, Edit3, Undo2, Redo2, ArrowDownToLine, ArrowRightLeft, FileCode2 } from 'lucide-react';
 import { IOSettingModal } from './IOSettingModal';
+import { HelperLines } from './HelperLines';
+import { getHelperLines } from '../utils/helperLines';
 import { IDOSearchModal, ComponentItem } from './IDOSearchModal';
 import { fetchComponentIO } from '../services/componentService';
 import { ConditionEditModal } from './ConditionEditModal';
@@ -326,6 +331,7 @@ interface FlowCanvasProps {
 export interface FlowCanvasHandle {
   undo: () => void;
   redo: () => void;
+  reset: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
   getNodes: () => Node[];
@@ -336,6 +342,7 @@ const EMPTY_FOREACH_OUTPUTS: Array<{ name: string; fieldType?: string; children?
 const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId, initialNodes: propsInitialNodes, initialEdges: propsInitialEdges, onNodesUpdate, onEdgesUpdate, availableNodes = [], containerType: canvasContainerType = null, foreachStartOutputs = EMPTY_FOREACH_OUTPUTS }, ref) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const reactFlowInstance = useReactFlow();
   const [contextMenu, setContextMenu] = useState<{ top: number; left: number; flowPosition: { x: number; y: number } } | null>(null);
   const [nodeContextMenu, setNodeContextMenu] = useState<{ top: number; left: number; nodeId: string } | null>(null);
   const [ioModal, setIoModal] = useState<{ isOpen: boolean; nodeId: string | null; readOnly?: boolean }>({ isOpen: false, nodeId: null, readOnly: false });
@@ -399,15 +406,28 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
     }
   }, [history, historyIndex, setNodes, setEdges]);
 
+  // 내부 초기화: 컨테이너 자신의 start/end만 남기고(data 보존) 나머지 노드·엣지 제거
+  // (메인 캔버스 RESET_FLOW와 동일 동작. 스냅샷은 nodes/edges 변경 감지 effect가 자동 저장)
+  const reset = useCallback(() => {
+    const startId = `${containerId}-start`;
+    const endId = `${containerId}-end`;
+    setNodes((nds) => nds
+      .filter((n) => n.id === startId || n.id === endId)
+      .map((n) => ({ ...n, selected: false, position: n.id === startId ? { x: 400, y: 100 } : { x: 400, y: 500 } })));
+    setEdges([]);
+    setTimeout(() => reactFlowInstance.fitView({ padding: 0.3, duration: 300 }), 100);
+  }, [containerId, setNodes, setEdges, reactFlowInstance]);
+
   // 부모 컴포넌트에 undo/redo 함수 노출
   useImperativeHandle(ref, () => ({
     undo,
     redo,
+    reset,
     canUndo: () => historyIndex > 0,
     canRedo: () => historyIndex < history.length - 1,
     getNodes: () => nodesRef.current,
     getEdges: () => edges,
-  }), [undo, redo, historyIndex, history.length, edges]);
+  }), [undo, redo, reset, historyIndex, history.length, edges]);
 
   // 중첩 ContainerFlowModal 상태 (for, forEach, while 노드용)
   const [nestedContainerModal, setNestedContainerModal] = useState<{
@@ -437,8 +457,6 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
     fieldName: '',
     expression: '',
   });
-
-  const reactFlowInstance = useReactFlow();
 
   // 초기화 완료 여부 추적
   const isInitializedRef = useRef(false);
@@ -640,6 +658,12 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
+    [setEdges]
+  );
+
+  // 연결선 끝점을 잡아 다시 잇기 (메인 캔버스와 동일 기능)
+  const onEdgeUpdate = useCallback(
+    (oldEdge: Edge, newConnection: Connection) => setEdges((eds) => updateEdge(oldEdge, newConnection, eds)),
     [setEdges]
   );
 
@@ -877,25 +901,20 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
     setIdChangeError('');
   }, [idChangeModal, newIdValue, nodes, propsInitialNodes, setNodes, setEdges]);
 
-  // Edge snapping - 노드를 선 위에 드롭하면 자동 연결
-  const onNodeDragStop = useCallback((event: React.MouseEvent, node: Node) => {
-    // Edge snapping 제외 노드 타입들
-    // 1. Start/End 노드 - 특수 노드
-    // 2. Variable 노드 - 연결 불가 노드
-    if (node.data?.isStart || node.data?.isEnd || node.type === 'variable') return;
-
+  // 드래그한 노드가 얹힌 엣지(끼워넣을 대상) 판정 — 메인 캔버스와 동일 기준
+  // 노드 박스가 엣지에 가깝기만 하면 잡히도록 임계값을 노드 크기에 비례
+  const getInsertEdge = useCallback((node: Node): Edge | undefined => {
+    if (node.data?.isStart || node.data?.isEnd || node.type === 'variable') return undefined;
     const nodeWidth = node.width || 150;
     const nodeHeight = node.height || 40;
     const nodeCenterX = node.position.x + nodeWidth / 2;
     const nodeCenterY = node.position.y + nodeHeight / 2;
+    const threshold = Math.max(48, nodeHeight / 2 + 30);
 
-    const overlappingEdge = edges.find((edge) => {
+    return edges.find((edge) => {
       const sourceNode = nodes.find((n) => n.id === edge.source);
       const targetNode = nodes.find((n) => n.id === edge.target);
-
       if (!sourceNode || !targetNode) return false;
-
-      // 이미 연결된 edge는 제외
       if (edge.source === node.id || edge.target === node.id) return false;
 
       const sourceX = sourceNode.position.x + (sourceNode.width || 150) / 2;
@@ -903,37 +922,49 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
       const targetX = targetNode.position.x + (targetNode.width || 150) / 2;
       const targetY = targetNode.position.y + (targetNode.height || 40) / 2;
 
-      // 점과 선분 거리 계산
-      const A = nodeCenterX - sourceX;
-      const B = nodeCenterY - sourceY;
-      const C = targetX - sourceX;
-      const D = targetY - sourceY;
-
-      const dot = A * C + B * D;
+      const A = nodeCenterX - sourceX, B = nodeCenterY - sourceY;
+      const C = targetX - sourceX, D = targetY - sourceY;
       const lenSq = C * C + D * D;
-      let param = -1;
-
-      if (lenSq !== 0) param = dot / lenSq;
-
+      let param = lenSq !== 0 ? (A * C + B * D) / lenSq : -1;
       let xx, yy;
-
-      if (param < 0) {
-        xx = sourceX;
-        yy = sourceY;
-      } else if (param > 1) {
-        xx = targetX;
-        yy = targetY;
-      } else {
-        xx = sourceX + param * C;
-        yy = sourceY + param * D;
-      }
-
-      const dx = nodeCenterX - xx;
-      const dy = nodeCenterY - yy;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-
-      return distance < 25;
+      if (param < 0) { xx = sourceX; yy = sourceY; }
+      else if (param > 1) { xx = targetX; yy = targetY; }
+      else { xx = sourceX + param * C; yy = sourceY + param * D; }
+      const dist = Math.sqrt((nodeCenterX - xx) ** 2 + (nodeCenterY - yy) ** 2);
+      return dist < threshold;
     });
+  }, [nodes, edges]);
+
+  // 드래그 중: 끼워넣을 후보 엣지를 초록 점선으로 실시간 하이라이트
+  const onNodeDrag = useCallback((_event: React.MouseEvent, node: Node) => {
+    const target = getInsertEdge(node);
+    setEdges((eds) => {
+      let changed = false;
+      const next = eds.map((e) => {
+        const shouldMark = !!target && e.id === target.id;
+        const isMarked = !!e.className && e.className.includes('insert-candidate');
+        if (shouldMark && !isMarked) { changed = true; return { ...e, className: `${e.className || ''} insert-candidate`.trim() }; }
+        if (!shouldMark && isMarked) { changed = true; return { ...e, className: (e.className || '').replace('insert-candidate', '').trim() }; }
+        return e;
+      });
+      return changed ? next : eds;
+    });
+  }, [getInsertEdge, setEdges]);
+
+  const clearInsertHighlight = useCallback(() => {
+    setEdges((eds) => eds.some((e) => e.className && e.className.includes('insert-candidate'))
+      ? eds.map((e) => e.className && e.className.includes('insert-candidate')
+          ? { ...e, className: e.className.replace('insert-candidate', '').trim() } : e)
+      : eds);
+  }, [setEdges]);
+
+  // Edge snapping - 노드를 선 위에 드롭하면 자동 연결
+  const onNodeDragStop = useCallback((event: React.MouseEvent, node: Node) => {
+    clearInsertHighlight();
+    // Edge snapping 제외 노드 타입들
+    if (node.data?.isStart || node.data?.isEnd || node.type === 'variable') return;
+
+    const overlappingEdge = getInsertEdge(node);
 
     if (overlappingEdge) {
       // 새 연결 유효성 검증
@@ -1280,6 +1311,25 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
 
   // ReactFlow에 표시할 노드 필터링 (중첩 컨테이너의 자식 노드는 숨김)
   // parentId가 없는 노드만 현재 컨테이너에 직접 속하는 노드
+  // 드래그 중 정렬 가이드선 (메인 캔버스와 동일 기준)
+  const [helperLineH, setHelperLineH] = useState<number | undefined>(undefined);
+  const [helperLineV, setHelperLineV] = useState<number | undefined>(undefined);
+  const onNodesChangeWithGuides = useCallback((changes: NodeChange[]) => {
+    if (changes.length === 1 && changes[0].type === 'position' && changes[0].dragging && changes[0].position) {
+      const pc = changes[0] as NodePositionChange;
+      const hl = getHelperLines(pc, nodesRef.current);
+      setHelperLineH(hl.horizontal);
+      setHelperLineV(hl.vertical);
+      if (hl.snapPosition.x !== undefined || hl.snapPosition.y !== undefined) {
+        changes = [{ ...pc, position: { x: hl.snapPosition.x ?? pc.position!.x, y: hl.snapPosition.y ?? pc.position!.y } }];
+      }
+    } else if (changes.some((c) => c.type === 'position' && !c.dragging)) {
+      setHelperLineH(undefined);
+      setHelperLineV(undefined);
+    }
+    onNodesChange(changes);
+  }, [onNodesChange]);
+
   const visibleNodes = useMemo(() => {
     return nodes.filter(n => !n.parentId);
   }, [nodes]);
@@ -1486,9 +1536,12 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
       <ReactFlow
         nodes={visibleNodes}
         edges={visibleEdges}
-        onNodesChange={onNodesChange}
+        onNodesChange={onNodesChangeWithGuides}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onEdgeUpdate={onEdgeUpdate}
+        edgeUpdaterRadius={16}
+        onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onNodeClick={onNodeClick}
         onNodeDoubleClick={onNodeDoubleClick}
@@ -1517,6 +1570,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(({ containerId,
       >
         <Controls position="bottom-left" />
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#cbd5e1" />
+        <HelperLines horizontal={helperLineH} vertical={helperLineV} />
       </ReactFlow>
 
       {/* 노드 정보 팝오버 (우상단 고정) */}
@@ -1900,6 +1954,22 @@ export const ContainerFlowModal = ({
         }
       }, 150);
     }
+  }, []);
+
+  // 내부 초기화 버튼 핸들러
+  const handleReset = useCallback(() => {
+    if (!flowCanvasRef.current) return;
+    if (!window.confirm('내부 노드와 연결선을 모두 지우고 Start/End만 남깁니다. 초기화하시겠습니까?')) return;
+    flowCanvasRef.current.reset();
+    // 스냅샷 debounce(300ms) 이후 버튼 상태 갱신
+    setTimeout(() => {
+      if (flowCanvasRef.current) {
+        setUndoRedoState({
+          canUndo: flowCanvasRef.current.canUndo(),
+          canRedo: flowCanvasRef.current.canRedo(),
+        });
+      }
+    }, 400);
   }, []);
 
   // currentNodes 변경 시 undoRedoState 업데이트
@@ -2882,8 +2952,15 @@ export const ContainerFlowModal = ({
             </div>
           )}
 
-          {/* Undo/Redo 버튼 */}
+          {/* 초기화 / Undo/Redo 버튼 */}
           <div className="flex items-center gap-1 border-l border-slate-200 pl-4 ml-4">
+            <button
+              onClick={handleReset}
+              className="p-2 rounded-lg transition-colors text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+              title="내부 초기화 (Start/End만 남김)"
+            >
+              <RotateCcw size={18} />
+            </button>
             <button
               onClick={handleUndo}
               disabled={!undoRedoState.canUndo}

@@ -74,14 +74,14 @@ export const useUndoRedo = (
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
       const modifier = isMac ? event.metaKey : event.ctrlKey;
 
-      if (modifier && event.key === 'z') {
+      if (modifier && event.key.toLowerCase() === 'z') {
         event.preventDefault();
         if (event.shiftKey) {
           redo();
         } else {
           undo();
         }
-      } else if (!isMac && modifier && event.key === 'y') {
+      } else if (!isMac && modifier && event.key.toLowerCase() === 'y') {
         event.preventDefault();
         redo();
       }
