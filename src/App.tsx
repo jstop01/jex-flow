@@ -568,6 +568,11 @@ export default function App() {
     [nodes, takeSnapshot]
   );
 
+  // 재연결 중인 엣지: isValidConnection의 "소스당 1개" 검사에서 자기 자신을 제외하기 위해 기억
+  const updatingEdgeRef = useRef<Edge | null>(null);
+  const onEdgeUpdateStart = useCallback((_event: React.MouseEvent, edge: Edge) => { updatingEdgeRef.current = edge; }, []);
+  const onEdgeUpdateEnd = useCallback(() => { updatingEdgeRef.current = null; }, []);
+
   // 연결선 끝점을 잡아 다른 노드/핸들로 다시 잇기 (isValidConnection 규칙은 React Flow가 동일 적용)
   const onEdgeUpdate = useCallback(
     (oldEdge: Edge, newConnection: Connection) => {
@@ -632,13 +637,14 @@ export default function App() {
       if (isMultiHandle) {
         // 멀티핸들 노드: 같은 소스+같은 핸들에 이미 연결이 있으면 차단
         const hasExisting = edges.some(
-          (e) => e.source === connection.source &&
+          (e) => e.id !== updatingEdgeRef.current?.id &&
+                 e.source === connection.source &&
                  (e.sourceHandle || null) === (connection.sourceHandle || null)
         );
         if (hasExisting) return false;
       } else {
-        // 일반 노드: 소스에 이미 아웃고잉 연결이 있으면 차단
-        const hasExisting = edges.some((e) => e.source === connection.source);
+        // 일반 노드: 소스에 이미 아웃고잉 연결이 있으면 차단 (재연결 중인 자기 자신은 제외)
+        const hasExisting = edges.some((e) => e.id !== updatingEdgeRef.current?.id && e.source === connection.source);
         if (hasExisting) return false;
       }
 
@@ -2648,6 +2654,8 @@ export default function App() {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onEdgeUpdate={onEdgeUpdate}
+            onEdgeUpdateStart={onEdgeUpdateStart}
+            onEdgeUpdateEnd={onEdgeUpdateEnd}
             edgeUpdaterRadius={16}
             isValidConnection={isValidConnection}
             onNodeDrag={onNodeDrag}
