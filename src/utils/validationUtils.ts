@@ -1,7 +1,7 @@
 import { Node, Edge } from 'reactflow';
 
 export interface ValidationError {
-  type: 'NO_START' | 'NO_END' | 'NOT_CONNECTED' | 'EMPTY_CALLDO' | 'CONTAINER_NOT_CONNECTED' | 'DISCONNECTED_NODE' | 'UNCALLED_METHOD' | 'ORPHAN_NODE' | 'EMPTY_CONDITION' | 'EMPTY_SCRIPT' | 'IFELSE_BRANCH_MISSING' | 'EMPTY_VARIABLE' | 'EMPTY_FOR' | 'EMPTY_FOREACH' | 'BROKEN_CALLMETHOD' | 'EMPTY_ERROR' | 'DEAD_END' | 'DUPLICATE_ID';
+  type: 'NO_START' | 'NO_END' | 'NOT_CONNECTED' | 'EMPTY_CALLDO' | 'EMPTY_PROCESS' | 'CONTAINER_NOT_CONNECTED' | 'DISCONNECTED_NODE' | 'UNCALLED_METHOD' | 'ORPHAN_NODE' | 'EMPTY_CONDITION' | 'EMPTY_SCRIPT' | 'IFELSE_BRANCH_MISSING' | 'EMPTY_VARIABLE' | 'EMPTY_FOR' | 'EMPTY_FOREACH' | 'BROKEN_CALLMETHOD' | 'EMPTY_ERROR' | 'DEAD_END' | 'DUPLICATE_ID';
   message: string;
   nodeIds?: string[];
 }
@@ -81,15 +81,27 @@ export const validateFlow = (nodes: Node[], edges: Edge[]): ValidationResult => 
     }
   }
 
-  // 4. CallDO/Process componentId 필수
+  // 4. CallDO componentId 필수 (Process는 IDO/IMO가 아니라 serviceType/서비스 설정을 쓰므로 제외)
   const emptyCallDOs = mainNodes.filter(n =>
-    (n.type === 'CallDO' || n.type === 'Process') && !n.data?.ido?.componentId
+    n.type === 'CallDO' && !n.data?.ido?.componentId
   );
   if (emptyCallDOs.length > 0) {
     errors.push({
       type: 'EMPTY_CALLDO',
       message: `IDO/IMO가 선택되지 않은 노드가 ${emptyCallDOs.length}개 있습니다.`,
       nodeIds: emptyCallDOs.map(n => n.id),
+    });
+  }
+
+  // 4-1. Process serviceType 필수 (다른 설정형 노드의 EMPTY_* 규칙과 동일 관행; 레거시 ido 연결 Process는 허용)
+  const emptyProcesses = mainNodes.filter(n =>
+    n.type === 'Process' && !n.data?.serviceType && !n.data?.ido?.componentId
+  );
+  if (emptyProcesses.length > 0) {
+    errors.push({
+      type: 'EMPTY_PROCESS',
+      message: `서비스 타입이 선택되지 않은 Process 노드가 ${emptyProcesses.length}개 있습니다.`,
+      nodeIds: emptyProcesses.map(n => n.id),
     });
   }
 

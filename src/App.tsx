@@ -1316,11 +1316,6 @@ export default function App() {
     });
   }, [takeSnapshot]);
 
-  // UUID Generator
-  const generateUUID = useCallback(() => {
-    return crypto.randomUUID();
-  }, []);
-
   // Copy selected nodes (excluding Start, End, and Internal Start/End nodes)
   const copySelectedNodes = useCallback(() => {
     // Get selected container nodes
@@ -1360,9 +1355,16 @@ export default function App() {
     const containerWidth = 600;
     const containerHeight = 400;
 
-    // Generate new IDs for all nodes
+    // Generate new IDs for all nodes — addNode와 동일한 "타입명+순번" 규칙 (노드 헤더가 id를 표시함)
+    // 기존 노드와 이번 붙여넣기에서 새로 부여한 id 모두와 중복 회피
+    const usedIds = new Set(nodes.map((n) => n.id));
     clipboardRef.current.forEach((node) => {
-      oldToNewIdMap[node.id] = generateUUID();
+      const type = node.type || 'Node';
+      let counter = 1;
+      while (usedIds.has(`${type}${counter}`)) counter++;
+      const newId = `${type}${counter}`;
+      usedIds.add(newId);
+      oldToNewIdMap[node.id] = newId;
     });
 
     const newNodes: Node[] = [];
@@ -1454,7 +1456,7 @@ export default function App() {
         y: node.position.y + PASTE_OFFSET,
       },
     }));
-  }, [generateUUID, updateNodeData, createApprovedOnChange, edges, takeSnapshot]);
+  }, [nodes, updateNodeData, createApprovedOnChange, edges, takeSnapshot]);
 
   // Keyboard event handler for copy/paste
   useEffect(() => {
