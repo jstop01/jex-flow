@@ -1,7 +1,4 @@
-import { JEXQ_BIZ_BASE } from '../utils/contextPath';
-
-// context-path 포함 (JEUS 등 context-path 환경 대응)
-const API_BASE_URL = JEXQ_BIZ_BASE;
+import { jctFetch } from '../utils/jctFetch';
 
 export interface MapFunction {
   code: string;
@@ -27,15 +24,7 @@ export interface FunctionDetail {
  * MAP 함수 목록 조회
  */
 export async function fetchMapFunctions(): Promise<MapFunction[]> {
-  const response = await fetch(`${API_BASE_URL}/flow_func_r001.jct`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ FUNC_TP: 'MAP' }),
-  });
-  if (!response.ok) {
-    throw new Error('MAP 함수 목록 조회 실패');
-  }
-  const data = await response.json();
+  const data = await jctFetch('flow_func_r001', { FUNC_TP: 'MAP' });
   return (data.types || []).map((t: any) => ({ code: t.code, name: t.name }));
 }
 
@@ -43,15 +32,7 @@ export async function fetchMapFunctions(): Promise<MapFunction[]> {
  * 함수 필드 상세 조회
  */
 export async function fetchFunctionFields(funcId: string): Promise<FunctionDetail> {
-  const response = await fetch(`${API_BASE_URL}/flow_func_r002.jct`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ FUNC_ID: funcId }),
-  });
-  if (!response.ok) {
-    throw new Error('함수 필드 조회 실패');
-  }
-  const data = await response.json();
+  const data = await jctFetch('flow_func_r002', { FUNC_ID: funcId });
   const fields: FunctionField[] = (data.fields || []).map((f: any) => ({
     id: f.id || '',
     text: f.text || f.id || '',

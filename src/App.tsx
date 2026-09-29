@@ -85,6 +85,7 @@ import { ForEditModal } from './components/ForEditModal';
 import { ForEachEditModal } from './components/ForEachEditModal';
 import { separateNodesAndGroups, cleanNodeForExport } from './utils/relationshipUtils';
 import { validateFlow, ValidationError } from './utils/validationUtils';
+import { setSessionExpiredHandler } from './utils/jctFetch';
 import { useActionApproval } from './hooks/useActionApproval';
 import { ApprovalOverlay } from './components/ApprovalOverlay';
 import { ApprovalActionType } from './types/approval';
@@ -2314,9 +2315,14 @@ export default function App() {
   }, [anyOverlayOpen]);
 
   // 부모 창의 #comFlowData에 저장 (postMessage 방식)
-  const saveToParent = useCallback((): boolean => {
+  // skipValidation: 세션 만료처럼 "일단 편집 내용부터 지켜야 하는" 상황용.
+  // 평상시 저장은 검증을 통과해야 하지만, 만료 시에는 미완성 flow라도 부모에 넘겨야
+  // 재로그인 후 이어서 작업할 수 있다. (검증 실패로 반환하면 편집분이 그대로 사라짐)
+  const saveToParent = useCallback((options?: { skipValidation?: boolean }): boolean => {
     try {
-      const validation = validateFlow(nodes, edges);
+      const validation = options?.skipValidation
+        ? { isValid: true, errors: [] as ValidationError[] }
+        : validateFlow(nodes, edges);
 
       if (!validation.isValid) {
         // 에러 노드 ID 수집 → 빨간 테두리 하이라이트
@@ -2463,6 +2469,32 @@ export default function App() {
       }, 500);
     }
   }, [setNodes, setEdges, takeSnapshot, updateNodeData, createApprovedOnChange]);
+
+  // 세션 만료 감지 시 처리.
+  // 편집 내용을 먼저 부모(hidden input)로 넘긴 뒤 부모에 만료를 알린다.
+  // saveToParent는 서버를 호출하지 않으므로 세션이 끊긴 상태에서도 성공한다 → 작업 유실 방지.
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      // 검증은 건너뛴다 — 편집 중(미완성) 상태에서 만료되는 경우가 대부분이라
+      // 검증에 걸리면 편집 내용이 부모로 전달되지 않고 그대로 사라진다.
+      let saved = false;
+      try {
+        saved = saveToParent({ skipValidation: true });
+      } catch (e) {
+        console.error('세션 만료 저장 중 오류:', e);
+      }
+      // 저장 성공 여부를 함께 알려, 부모가 "보존됨" 안내를 사실일 때만 하도록 한다.
+      const msg = { type: 'SESSION_EXPIRED', saved };
+      try {
+        window.parent.postMessage(msg, '*');
+        if (window.top && window.top !== window.parent) {
+          window.top.postMessage(msg, '*');
+        }
+      } catch (e) {
+        console.error('세션 만료 통지 중 오류:', e);
+      }
+    });
+  }, [saveToParent]);
 
   // 부모 창에서 SET_FLOW_DATA 메시지로 전달된 초기 flow 데이터 수신
   useEffect(() => {

@@ -2,6 +2,7 @@ import React, { memo, useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Handle, Position, NodeProps } from 'reactflow@11.11.4';
 import { GitBranch, ChevronDown, Edit2 } from 'lucide-react';
+import { MappingBadge } from './MappingBadge';
 
 export const DONode = memo(({ id, data, selected }: NodeProps) => {
   const [showReturnTypePopup, setShowReturnTypePopup] = useState(false);
@@ -80,6 +81,7 @@ export const DONode = memo(({ id, data, selected }: NodeProps) => {
             <div className="text-slate-900 font-bold text-sm">{id}</div>
             <div className="text-slate-400 text-[10px] font-mono">type: CallDO</div>
           </div>
+          <div className="ml-auto"><MappingBadge mappings={data.mappings} /></div>
         </div>
 
         {/* Body */}

@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow@11.11.4';
 import { Code } from 'lucide-react';
+import { MappingBadge } from './MappingBadge';
 
 export const ScriptNode = memo(({ id, data, selected }: NodeProps) => {
   const scriptTypeLabels: Record<string, string> = {
@@ -32,6 +33,7 @@ export const ScriptNode = memo(({ id, data, selected }: NodeProps) => {
           <div className="font-bold text-slate-800 text-sm">{id}</div>
           <div className="text-slate-400 text-[10px] font-mono">type: Script</div>
         </div>
+        <div className="ml-auto"><MappingBadge mappings={data.mappings} /></div>
       </div>
 
       {/* Body */}

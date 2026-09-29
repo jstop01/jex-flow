@@ -30,6 +30,20 @@ export interface ComponentItem {
   svrId?: string;
 }
 
+/**
+ * 직전 검색조건 (모달 인스턴스 밖에 보관).
+ * 컴포넌트를 다시 선택하려고 모달을 여닫을 때마다 조건이 초기화돼
+ * 매번 같은 검색을 반복해야 했다. 세션 동안 마지막 조회 조건을 기억해 재조회한다.
+ * '초기화' 버튼을 누르면 기본값으로 돌아간다.
+ */
+interface LastSearchFilters {
+  type: string;
+  server: string;
+  id: string;
+  name: string;
+}
+let lastSearchFilters: LastSearchFilters | null = null;
+
 interface IDOSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -105,6 +119,8 @@ export const IDOSearchModal = ({ isOpen, onClose, onSelect, currentNodeLabel }: 
 
       const items = await fetchComponents(filters);
       setRowData(items);
+      // 다음에 모달을 열 때 같은 조건으로 재조회하기 위해 보관
+      lastSearchFilters = { type: filterType, server: filterServer, id: filterId, name: filterName };
     } catch (e) {
       console.error('Failed to fetch components:', e);
       setRowData([]);
@@ -113,25 +129,39 @@ export const IDOSearchModal = ({ isOpen, onClose, onSelect, currentNodeLabel }: 
     }
   }, [filterType, filterId, filterName, filterServer]);
 
-  // 모달 열릴 때 상태 초기화 + 목록 로드
+  // 모달 열릴 때 상태 복원 + 목록 로드
+  // 직전 검색조건이 있으면 그대로 되살려 같은 조건으로 재조회한다 (없으면 기본값 IDO).
   useEffect(() => {
     if (isOpen) {
+      const prev = lastSearchFilters;
+      const comTp = prev ? prev.type : 'IDO';
+
       setSelectedItems([]);
-      setFilterType('IDO');
-      setFilterId('');
-      setFilterName('');
-      setFilterServer('');
+      setFilterType(comTp);
+      setFilterId(prev ? prev.id : '');
+      setFilterName(prev ? prev.name : '');
       if (gridRef.current?.api) {
         gridRef.current.api.deselectAll();
       }
-      // 서버 목록 로드 + 기본값(IDO)으로 조회
+
       (async () => {
-        const servers = await fetchTargetServers('IDO');
+        const servers = await fetchTargetServers(comTp);
         setServerList(servers);
-        setFilterServer(servers.length > 0 ? servers[0].SVR_ID : '');
+        // 직전 서버가 현재 타입의 목록에 남아 있을 때만 복원, 아니면 첫 항목
+        const restoredServer = prev && servers.some((sv) => sv.SVR_ID === prev.server)
+          ? prev.server
+          : (servers.length > 0 ? servers[0].SVR_ID : '');
+        setFilterServer(restoredServer);
+
         setLoading(true);
         try {
-          const items = await fetchComponents({ COM_TP: 'IDO' });
+          const filters: Record<string, string> = { COM_TP: comTp };
+          if (prev) {
+            if (prev.id) filters.COM_ID = prev.id;
+            if (prev.name) filters.COM_NM = prev.name;
+            if (restoredServer) filters.SVR_ID = restoredServer;
+          }
+          const items = await fetchComponents(filters);
           setRowData(items);
         } catch (e) {
           console.error('Failed to fetch components:', e);
@@ -148,6 +178,7 @@ export const IDOSearchModal = ({ isOpen, onClose, onSelect, currentNodeLabel }: 
   };
 
   const handleReset = () => {
+    lastSearchFilters = null;   // 보관된 직전 조건도 함께 초기화
     setFilterType('IDO');
     setFilterId('');
     setFilterName('');

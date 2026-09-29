@@ -1,8 +1,5 @@
 import type { IOField } from '../components/IOSettingModal';
-import { JEXQ_BIZ_BASE } from '../utils/contextPath';
-
-// API 설정 (context-path 포함 — JEUS 등 context-path 환경 대응)
-const API_BASE_URL = JEXQ_BIZ_BASE;
+import { jctFetch } from '../utils/jctFetch';
 
 export interface ComponentItem {
   id: string;
@@ -34,31 +31,19 @@ export interface TargetServer {
  * 타겟 서버 목록 조회
  */
 export async function fetchTargetServers(comTp: string): Promise<TargetServer[]> {
-  const response = await fetch(`${API_BASE_URL}/flow_target_r001.jct`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ COM_TP: comTp }),
-  });
-  if (!response.ok) return [];
-  const data = await response.json();
-  return (data.TARGET_LIST || []) as TargetServer[];
+  try {
+    const data = await jctFetch('flow_target_r001', { COM_TP: comTp });
+    return (data.TARGET_LIST || []) as TargetServer[];
+  } catch {
+    return [];   // 기존 계약 유지: 실패 시 빈 목록 (세션 만료 통지는 jctFetch가 이미 처리)
+  }
 }
 
 /**
  * 컴포넌트 목록 조회 (IDO/IMO)
  */
 export async function fetchComponents(filters?: ComponentSearchFilters): Promise<ComponentItem[]> {
-  const response = await fetch(`${API_BASE_URL}/flow_comp_r001.jct`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(filters || {}),
-  });
-
-  if (!response.ok) {
-    throw new Error('컴포넌트 목록 조회 실패');
-  }
-
-  const data = await response.json();
+  const data = await jctFetch('flow_comp_r001', filters || {});
   const list: any[] = data.COM_LIST || [];
 
   return list.map((o: any, idx: number) => ({
@@ -88,17 +73,7 @@ export async function fetchComponentIO(
   comId: string,
   comTp: string
 ): Promise<ComponentIOResult> {
-  const response = await fetch(`${API_BASE_URL}/flow_comp_r002.jct`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ COM_ID: comId, COM_TP: comTp }),
-  });
-
-  if (!response.ok) {
-    throw new Error('컴포넌트 IO 도메인 조회 실패');
-  }
-
-  const data = await response.json();
+  const data = await jctFetch('flow_comp_r002', { COM_ID: comId, COM_TP: comTp });
   const domainList: any[] = data.DOMAIN_LIST || [];
 
   // IO_TP='R' 도메인 맵: COM_ID → children IOField[] (inputs/outputs 양쪽에서 참조)

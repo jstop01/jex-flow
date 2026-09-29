@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow@11.11.4';
 import { GitMerge, Plus, X } from 'lucide-react';
+import { MappingBadge } from './MappingBadge';
 
 export const SwitchNode = memo(({ id, data, selected }: NodeProps) => {
   const cases: string[] = data.cases || ['Case 1', 'Case 2'];
@@ -50,6 +51,7 @@ export const SwitchNode = memo(({ id, data, selected }: NodeProps) => {
           <div className="font-bold text-slate-800 text-sm">{id}</div>
           <div className="text-slate-400 text-[10px] font-mono">type: Switch</div>
         </div>
+        <div className="ml-auto"><MappingBadge mappings={data.mappings} /></div>
       </div>
 
       <div className="p-4 bg-white rounded-b-[10px]">

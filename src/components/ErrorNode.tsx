@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow@11.11.4';
 import { AlertCircle } from 'lucide-react';
+import { MappingBadge } from './MappingBadge';
 
 export const ErrorNode = memo(({ id, data, selected }: NodeProps) => {
   return (
@@ -25,6 +26,7 @@ export const ErrorNode = memo(({ id, data, selected }: NodeProps) => {
             {id}
         </div>
         <div className="text-red-300 text-[10px] font-mono">type: Error</div>
+        <MappingBadge mappings={data.mappings} />
         {data.code && (
             <div className="text-[10px] text-red-400 font-mono">
                 {data.code}{data.codeName ? ` · ${data.codeName}` : ''}

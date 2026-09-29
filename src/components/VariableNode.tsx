@@ -1,6 +1,7 @@
 import React, { memo, useState, useEffect } from 'react';
 import { NodeProps, Handle, Position } from 'reactflow@11.11.4';
 import { Database, Save } from 'lucide-react';
+import { MappingBadge } from './MappingBadge';
 
 export const VariableNode = memo(({ id, data, selected }: NodeProps) => {
   const [localName, setLocalName] = useState(data.variableName || '');
@@ -65,6 +66,7 @@ export const VariableNode = memo(({ id, data, selected }: NodeProps) => {
           <span className="font-bold text-emerald-900 text-xs">{id}</span>
           <div className="text-slate-400 text-[10px] font-mono">type: Variable</div>
         </div>
+        <div className="ml-auto"><MappingBadge mappings={data.mappings} /></div>
       </div>
 
       <div className="p-3 bg-white">

@@ -1,10 +1,8 @@
 import { ServiceTypeDataResponse, ServiceTypeInputsResponse, InputField } from '../types/process';
 import { MOCK_SERVICE_TYPE_DATA, MOCK_SERVICE_TYPE_INPUTS } from '../data/process-mock';
-import { JEXQ_BIZ_BASE } from '../utils/contextPath';
+import { jctFetch } from '../utils/jctFetch';
 
-// API 설정 (context-path 포함 — JEUS 등 context-path 환경 대응)
 const USE_MOCK = false;
-const API_BASE_URL = JEXQ_BIZ_BASE;
 
 /**
  * 서버에서 서비스 타입 목록 조회 (PRC 함수)
@@ -18,15 +16,7 @@ export async function fetchServiceTypes(): Promise<ServiceTypeDataResponse> {
     };
   }
 
-  const response = await fetch(`${API_BASE_URL}/flow_func_r001.jct`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ FUNC_TP: 'PRC' }),
-  });
-  if (!response.ok) {
-    throw new Error('서비스 타입 조회 실패');
-  }
-  return response.json();
+  return jctFetch('flow_func_r001', { FUNC_TP: 'PRC' });
 }
 
 /**
@@ -41,15 +31,7 @@ export async function syncServiceTypes(): Promise<ServiceTypeDataResponse> {
     };
   }
 
-  const response = await fetch(`${API_BASE_URL}/flow_func_r001.jct`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ FUNC_TP: 'PRC' }),
-  });
-  if (!response.ok) {
-    throw new Error('서비스 타입 동기화 실패');
-  }
-  return response.json();
+  return jctFetch('flow_func_r001', { FUNC_TP: 'PRC' });
 }
 
 /**
@@ -70,15 +52,7 @@ export async function fetchServiceTypeInputs(serviceType: string): Promise<Servi
     };
   }
 
-  const response = await fetch(`${API_BASE_URL}/flow_func_r002.jct`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ FUNC_ID: serviceType }),
-  });
-  if (!response.ok) {
-    throw new Error('서비스 타입 입력 필드 조회 실패');
-  }
-  const data = await response.json();
+  const data = await jctFetch('flow_func_r002', { FUNC_ID: serviceType });
 
   // listValue가 JSON 문자열이면 파싱
   if (data.fields) {

@@ -5,6 +5,7 @@ import { Workflow, Play, Square, ChevronDown, Settings } from 'lucide-react';
 import { ServiceTypeInputModal, InputField } from './ServiceTypeInputModal';
 import { ServiceTypeOption, InputField as InputFieldType } from '../types/process';
 import { fetchServiceTypes, fetchServiceTypeInputs } from '../services/processService';
+import { MappingBadge } from './MappingBadge';
 
 export const ProcessNode = memo(({ id, data, selected }: NodeProps) => {
   const [showServiceTypePopup, setShowServiceTypePopup] = useState(false);
@@ -34,10 +35,9 @@ export const ProcessNode = memo(({ id, data, selected }: NodeProps) => {
       setIsLoaded(true);
     } catch (error) {
       console.error('Failed to fetch service types:', error);
-      // 실패 시 기본값 사용
-      setApiServiceTypes([
-        { code: 'com.process.ProcessDefault', name: '기본 프로세스' },
-      ]);
+      // 조회 실패 시 가짜 기본값을 넣으면 정상 목록처럼 보여 오인하므로 빈 목록으로 둔다.
+      // (isLoaded를 세우지 않아 다음 클릭 때 재조회된다)
+      setApiServiceTypes([]);
     } finally {
       setIsLoadingTypes(false);
     }
@@ -103,10 +103,8 @@ export const ProcessNode = memo(({ id, data, selected }: NodeProps) => {
       setServiceTypeInputFields(response.fields as InputField[]);
     } catch (error) {
       console.error('Failed to fetch service type inputs:', error);
-      // 실패 시 기본 필드 사용
-      setServiceTypeInputFields([
-        { id: 'description', text: '설명', type: 'TEXT', defaultValue: '' },
-      ]);
+      // 조회 실패 시 임의의 기본 필드를 만들어 주면 저장 시 잘못된 값이 들어가므로 비워 둔다.
+      setServiceTypeInputFields([]);
     } finally {
       setIsLoadingInputs(false);
       setShowInputModal(true);
@@ -190,6 +188,7 @@ export const ProcessNode = memo(({ id, data, selected }: NodeProps) => {
           <div className="text-slate-900 font-bold text-sm leading-tight">{id}</div>
           <div className="text-slate-400 text-[10px] font-mono">type: {data.isStart || data.isInternalStart ? 'Start' : (data.isEnd || data.isInternalEnd ? 'End' : 'Process')}</div>
         </div>
+        <div className="ml-auto"><MappingBadge mappings={data.mappings} /></div>
       </div>
 
       {/* Body */}

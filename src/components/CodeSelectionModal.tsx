@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search } from 'lucide-react';
-import { JEXQ_BIZ_BASE } from '../utils/contextPath';
+import { jctFetch } from '../utils/jctFetch';
 
 export interface ErrorCodeItem {
   id: string;
@@ -42,12 +42,7 @@ export const CodeSelectionModal = ({ isOpen, onClose, onSelect, onDirectInput, i
   useEffect(() => {
     if (isOpen) {
       setLoading(true);
-      fetch(`${JEXQ_BIZ_BASE}/flow_code_r001.jct`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ LANG_CD: 'ko' }),
-      })
-        .then((res) => res.json())
+      jctFetch('flow_code_r001', { LANG_CD: 'ko' })
         .then((data) => {
           const list = (data.CODE_LIST || []).map((item: any, idx: number) => ({
             id: String(idx + 1),
