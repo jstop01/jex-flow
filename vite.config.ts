@@ -27,8 +27,28 @@ function assetManifestPlugin(): Plugin {
   };
 }
 
+/**
+ * 인스펙션 STRICT_MODE 대응: 번들 각 청크 선두에 "use strict" 지시어를 삽입한다.
+ * 압축(minify) 이후 단계(enforce: 'post' + generateBundle)에서 붙여야
+ * 최적화 과정에서 지시어가 제거되지 않는다.
+ */
+function useStrictBannerPlugin(): Plugin {
+  return {
+    name: 'use-strict-banner',
+    apply: 'build',
+    enforce: 'post',
+    generateBundle(_options, bundle) {
+      for (const chunk of Object.values(bundle)) {
+        if (chunk.type === 'chunk') {
+          chunk.code = '"use strict";' + chunk.code;
+        }
+      }
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), assetManifestPlugin()],
+  plugins: [react(), assetManifestPlugin(), useStrictBannerPlugin()],
   resolve: {
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
     alias: {
